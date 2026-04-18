@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💰 年度花費管理</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f0ff;
+  --surface: #ffffff;
+  --surface2: #faf8ff;
+  --border: #e8e0ff;
+  --text: #2d2546;
+  --text2: #7c6fa0;
+  --text3: #b0a4cc;
+  --accent: #8b5cf6;
+  --accent2: #a78bfa;
+  --accent3: #c4b5fd;
+  --pink: #f472b6;
+  --pink2: #fbcfe8;
+  --teal: #2dd4bf;
+  --teal2: #99f6e4;
+  --amber: #fbbf24;
+  --amber2: #fde68a;
+  --coral: #fb7185;
+  --coral2: #fecdd3;
+  --green: #34d399;
+  --green2: #a7f3d0;
+  --blue: #60a5fa;
+  --blue2: #bfdbfe;
+  --shadow: 0 4px 24px rgba(139,92,246,0.10);
+  --shadow2: 0 8px 40px rgba(139,92,246,0.18);
+  --radius: 18px;
+  --radius2: 12px;
+  --transition: 0.22s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+
+/* ---- TOP BAR ---- */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 24px;background:var(--surface);
+  border-bottom:1.5px solid var(--border);
+  box-shadow:0 2px 12px rgba(139,92,246,0.07);
+  flex-shrink:0;gap:12px;
+}
+.logo{font-family:'Nunito',sans-serif;font-size:1.35rem;font-weight:900;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.month-nav{display:flex;align-items:center;gap:8px}
+.month-nav button{background:var(--border);border:none;border-radius:50%;width:30px;height:30px;
+  cursor:pointer;font-size:1rem;color:var(--accent);transition:var(--transition)}
+.month-nav button:hover{background:var(--accent);color:#fff;transform:scale(1.12)}
+#month-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.05rem;
+  color:var(--accent);min-width:110px;text-align:center}
+.topbar-right{display:flex;align-items:center;gap:10px}
+#income-input-wrap{display:flex;align-items:center;gap:6px;
+  background:var(--surface2);border:1.5px solid var(--border);border-radius:40px;padding:4px 14px}
+#income-input-wrap label{font-size:.78rem;color:var(--text2);white-space:nowrap}
+#income-val{border:none;background:transparent;font-size:.95rem;font-weight:700;
+  color:var(--accent);width:90px;text-align:right;outline:none;font-family:'Nunito',sans-serif}
+#sheets-status{font-size:.72rem;padding:4px 12px;border-radius:40px;font-weight:700;cursor:pointer;
+  border:1.5px solid;transition:var(--transition)}
+#sheets-status.ok{background:#d1fae5;border-color:#6ee7b7;color:#065f46}
+#sheets-status.err{background:#fce7f3;border-color:var(--pink);color:#9d174d}
+#sheets-status.pending{background:var(--amber2);border-color:var(--amber);color:#78350f}
+#settings-btn{background:var(--surface2);border:1.5px solid var(--border);border-radius:50%;
+  width:34px;height:34px;cursor:pointer;font-size:1.1rem;transition:var(--transition)}
+#settings-btn:hover{background:var(--accent);border-color:var(--accent);transform:rotate(45deg)}
+
+/* ---- LAYOUT ---- */
+#app{display:flex;flex:1;overflow:hidden}
+#sidebar{
+  width:260px;min-width:220px;background:var(--surface);
+  border-right:1.5px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;
+}
+#main{flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:16px}
+
+/* ---- SIDEBAR ---- */
+.sidebar-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sidebar-label{font-size:.72rem;font-weight:700;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.08em;margin-bottom:10px}
+/* KPI cards */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{border-radius:var(--radius2);padding:10px;text-align:center;position:relative;overflow:hidden}
+.kpi-val{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:800;line-height:1.1}
+.kpi-lbl{font-size:.65rem;color:var(--text2);margin-top:3px;font-weight:600}
+.kpi-diff{font-size:.62rem;font-weight:700;margin-top:2px}
+.kpi.c1{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.kpi.c2{background:linear-gradient(135deg,#fce7f3,#fbcfe8)}
+.kpi.c3{background:linear-gradient(135deg,#d1fae5,#a7f3d0)}
+.kpi.c4{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+
+/* Quick add */
+.quick-add-form{display:flex;flex-direction:column;gap:8px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.inp{border:1.5px solid var(--border);border-radius:var(--radius2);padding:7px 10px;
+  font-size:.85rem;background:var(--surface2);color:var(--text);outline:none;
+  transition:var(--transition);font-family:'Noto Sans TC',sans-serif;width:100%}
+.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent3)40}
+.inp-full{grid-column:1/-1}
+.btn-add{background:linear-gradient(135deg,var(--accent),var(--pink));color:#fff;border:none;
+  border-radius:40px;padding:9px;font-size:.9rem;font-weight:700;cursor:pointer;
+  transition:var(--transition);font-family:'Nunito',sans-serif;letter-spacing:.03em}
+.btn-add:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
+.btn-add:active{transform:translateY(0)}
+
+/* Quick shortcuts */
+.quick-btns{display:flex;flex-wrap:wrap;gap:5px}
+.qbtn{border:1.5px solid var(--border);background:var(--surface2);border-radius:40px;
+  padding:4px 10px;font-size:.72rem;cursor:pointer;transition:var(--transition);color:var(--text2);font-weight:600}
+.qbtn:hover{background:var(--accent);color:#fff;border-color:var(--accent);transform:scale(1.05)}
+
+/* Category budgets sidebar */
+.budget-list{display:flex;flex-direction:column;gap:8px}
+.budget-item{}
+.budget-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.budget-name{font-size:.75rem;font-weight:700}
+.budget-nums{font-size:.68rem;color:var(--text2)}
+.budget-bar-bg{height:6px;border-radius:40px;background:var(--border);overflow:hidden}
+.budget-bar-fill{height:100%;border-radius:40px;transition:width .5s ease}
+.budget-over .budget-bar-fill{background:var(--coral)!important}
+.budget-over .budget-nums{color:var(--coral);font-weight:800}
+
+/* ---- MAIN CONTENT ---- */
+.section-title{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;color:var(--text);
+  display:flex;align-items:center;gap:6px;margin-bottom:10px}
+/* Charts row */
+#charts-row{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:14px}
+.chart-card{background:var(--surface);border-radius:var(--radius);padding:16px;
+  box-shadow:var(--shadow);border:1px solid var(--border);transition:var(--transition)}
+.chart-card:hover{box-shadow:var(--shadow2);transform:translateY(-2px)}
+.chart-wrap{position:relative;height:180px}
+
+/* Category summary */
+#cat-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.cat-card{background:var(--surface);border-radius:var(--radius);padding:12px;
+  box-shadow:var(--shadow);border:1px solid var(--border);text-align:center;
+  transition:var(--transition);cursor:default;position:relative;overflow:hidden}
+.cat-card::before{content:'';position:absolute;inset:0;opacity:0;
+  transition:var(--transition)}
+.cat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow2)}
+.cat-emoji{font-size:1.4rem;margin-bottom:4px}
+.cat-name{font-size:.65rem;font-weight:700;color:var(--text2);margin-bottom:6px}
+.cat-amount{font-family:'Nunito',sans-serif;font-size:1rem;font-weight:800;color:var(--text)}
+.cat-pct{font-size:.65rem;color:var(--text2);margin-top:2px}
+.cat-pct-bar{height:4px;border-radius:40px;background:var(--border);margin-top:6px;overflow:hidden}
+.cat-pct-fill{height:100%;border-radius:40px;transition:width .6s ease}
+
+/* Expense table */
+#table-card{background:var(--surface);border-radius:var(--radius);padding:16px;
+  box-shadow:var(--shadow);border:1px solid var(--border)}
+.table-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filter-chip{border:1.5px solid var(--border);background:var(--surface2);border-radius:40px;
+  padding:4px 12px;font-size:.75rem;cursor:pointer;transition:var(--transition);color:var(--text2);font-weight:600}
+.filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filter-chip:hover{border-color:var(--accent)}
+#search-inp{border:1.5px solid var(--border);border-radius:40px;padding:5px 14px;
+  font-size:.8rem;background:var(--surface2);outline:none;transition:var(--transition);color:var(--text)}
+#search-inp:focus{border-color:var(--accent)}
+.ml-auto{margin-left:auto}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;
+  letter-spacing:.06em;padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)}
+tbody tr{transition:var(--transition);cursor:default}
+tbody tr:hover{background:var(--surface2)}
+tbody td{padding:8px 10px;font-size:.82rem;border-bottom:1px solid var(--border)40}
+.tag{display:inline-block;padding:2px 9px;border-radius:40px;font-size:.68rem;font-weight:700}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:.85rem;
+  padding:2px 6px;border-radius:6px;transition:var(--transition)}
+.del-btn:hover{background:var(--coral2);color:var(--coral)}
+.edit-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:.85rem;
+  padding:2px 6px;border-radius:6px;transition:var(--transition)}
+.edit-btn:hover{background:var(--blue2);color:var(--blue)}
+.amount-cell{font-family:'Nunito',sans-serif;font-weight:700}
+
+/* ---- MODALS ---- */
+.overlay{position:fixed;inset:0;background:rgba(45,37,70,.4);z-index:100;
+  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);
+  animation:fadeIn .2s ease}
+.modal{background:var(--surface);border-radius:var(--radius);padding:28px;
+  width:min(92vw,480px);box-shadow:var(--shadow2);animation:slideUp .22s ease}
+.modal h3{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.15rem;margin-bottom:18px;
+  color:var(--text)}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.btn-sec{background:var(--surface2);border:1.5px solid var(--border);border-radius:40px;
+  padding:8px 20px;font-size:.85rem;cursor:pointer;font-weight:700;color:var(--text2);
+  transition:var(--transition)}
+.btn-sec:hover{border-color:var(--accent);color:var(--accent)}
+.btn-pri{background:linear-gradient(135deg,var(--accent),var(--pink));color:#fff;border:none;
+  border-radius:40px;padding:8px 20px;font-size:.85rem;cursor:pointer;font-weight:700;
+  transition:var(--transition)}
+.btn-pri:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:.72rem;font-weight:700;color:var(--text2)}
+select.inp option{background:var(--surface);color:var(--text)}
+
+/* Settings modal */
+.settings-section{margin-bottom:18px}
+.settings-section h4{font-size:.8rem;font-weight:700;color:var(--text2);margin-bottom:10px;
+  text-transform:uppercase;letter-spacing:.06em}
+.sheets-config{display:flex;flex-direction:column;gap:8px}
+.sheets-config label{font-size:.78rem;color:var(--text2)}
+.sheets-config .inp{font-size:.8rem}
+.cat-manage-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto}
+.cat-manage-item{display:flex;align-items:center;gap:8px;padding:6px 10px;
+  background:var(--surface2);border-radius:var(--radius2)}
+.cat-manage-item input{flex:1;border:none;background:transparent;font-size:.82rem;
+  color:var(--text);outline:none}
+.cat-manage-item button{background:none;border:none;cursor:pointer;color:var(--text3);
+  font-size:.85rem;transition:var(--transition)}
+.cat-manage-item button:hover{color:var(--coral)}
+.add-cat-row{display:flex;gap:6px;margin-top:6px}
+.add-cat-row .inp{flex:1}
+.add-cat-row button{white-space:nowrap;padding:7px 14px;font-size:.8rem}
+.budget-setting-list{display:flex;flex-direction:column;gap:8px;max-height:250px;overflow-y:auto}
+.budget-setting-item{display:flex;align-items:center;gap:8px}
+.budget-setting-item label{font-size:.78rem;color:var(--text2);min-width:120px}
+.budget-setting-item .inp{width:100px;text-align:right}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;z-index:200;
+  background:var(--text);color:#fff;border-radius:var(--radius2);padding:12px 20px;
+  font-size:.85rem;font-weight:600;animation:slideUp .2s ease;box-shadow:var(--shadow2)}
+.toast.success{background:linear-gradient(135deg,var(--teal),var(--green))}
+.toast.error{background:linear-gradient(135deg,var(--coral),var(--pink))}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--accent3);border-radius:40px}
+
+/* Responsive */
+@media(max-width:900px){
+  #sidebar{width:220px;min-width:180px}
+  #charts-row{grid-template-columns:1fr 1fr}
+  #cat-row{grid-template-columns:repeat(3,1fr)}
+  #charts-row .chart-card:first-child{grid-column:1/-1}
+}
+@media(max-width:640px){
+  #sidebar{display:none}
+  #charts-row{grid-template-columns:1fr}
+  #cat-row{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span class="logo">💸 年度花費管理</span>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">‹</button>
+    <span id="month-label">2025年 1月</span>
+    <button onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="topbar-right">
+    <div id="income-input-wrap">
+      <label>月收入 $</label>
+      <input id="income-val" type="number" placeholder="0" oninput="saveIncome()">
+    </div>
+    <span id="sheets-status" class="pending" onclick="openSettings()" title="點擊設定 Google Sheets">⚙ 未連線</span>
+    <button id="settings-btn" onclick="openSettings()" title="設定">⚙</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <!-- KPI -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">本月概覽</div>
+      <div class="kpi-grid">
+        <div class="kpi c1">
+          <div class="kpi-val" id="kpi-total">$0</div>
+          <div class="kpi-lbl">本月支出</div>
+          <div class="kpi-diff" id="kpi-diff"></div>
+        </div>
+        <div class="kpi c2">
+          <div class="kpi-val" id="kpi-saving">0%</div>
+          <div class="kpi-lbl">儲蓄率</div>
+        </div>
+        <div class="kpi c3">
+          <div class="kpi-val" id="kpi-budget-used">0%</div>
+          <div class="kpi-lbl">預算使用</div>
+        </div>
+        <div class="kpi c4">
+          <div class="kpi-val" id="kpi-count">0</div>
+          <div class="kpi-lbl">筆數</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK ADD FORM -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">快速新增</div>
+      <div class="quick-add-form">
+        <div class="form-row">
+          <input class="inp" id="q-amount" type="number" placeholder="金額" min="0">
+          <select class="inp" id="q-cat"></select>
+        </div>
+        <input class="inp" id="q-item" placeholder="項目名稱" list="item-datalist">
+        <datalist id="item-datalist"></datalist>
+        <div class="form-row">
+          <input class="inp" id="q-date" type="date">
+          <input class="inp" id="q-note" placeholder="備註">
+        </div>
+        <button class="btn-add" onclick="quickAdd()">＋ 新增支出</button>
+      </div>
+    </div>
+
+    <!-- QUICK SHORTCUTS -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">常用快捷</div>
+      <div class="quick-btns" id="quick-btns"></div>
+    </div>
+
+    <!-- BUDGET STATUS -->
+    <div class="sidebar-section" style="flex:1">
+      <div class="sidebar-label">預算狀態</div>
+      <div class="budget-list" id="budget-list"></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="main">
+    <!-- Charts -->
+    <div id="charts-row">
+      <div class="chart-card">
+        <div class="section-title">📈 月度支出趨勢</div>
+        <div class="chart-wrap"><canvas id="line-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title">🥧 分類占比</div>
+        <div class="chart-wrap"><canvas id="pie-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title">📊 預算 vs 實際</div>
+        <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Category Cards -->
+    <div>
+      <div class="section-title">🎨 支出分類</div>
+      <div id="cat-row"></div>
+    </div>
+
+    <!-- Expense Table -->
+    <div id="table-card">
+      <div class="table-toolbar">
+        <div class="section-title" style="margin-bottom:0">📋 支出明細</div>
+        <div id="filter-chips"></div>
+        <input class="inp ml-auto" id="search-inp" placeholder="🔍 搜尋..." oninput="renderTable()" style="width:160px">
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th><th>項目</th><th>分類</th><th>大類</th><th>金額</th><th>備註</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="expense-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="overlay" style="display:none" onclick="closeSettingsOutside(event)">
+  <div class="modal" style="width:min(92vw,560px)">
+    <h3>⚙ 設定</h3>
+    <div class="settings-section">
+      <h4>🔗 Google Sheets 同步</h4>
+      <div class="sheets-config">
+        <label>Apps Script Web App URL（部署後貼上）</label>
+        <input class="inp" id="gas-url" placeholder="https://script.google.com/macros/s/...">
+        <label>試算表 ID（非必填，僅供參考）</label>
+        <input class="inp" id="sheet-id" placeholder="Google Sheets 網址中的 ID">
+        <button class="btn-pri" onclick="saveSheetConfig()">儲存連線設定</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>📂 預設支出項目管理</h4>
+      <div class="cat-manage-list" id="items-list"></div>
+      <div class="add-cat-row">
+        <input class="inp" id="new-item-name" placeholder="新增項目名稱">
+        <select class="inp" id="new-item-bigcat" style="width:130px"></select>
+        <button class="btn-pri" onclick="addDefaultItem()">＋ 新增</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>💰 月預算設定</h4>
+      <div class="budget-setting-list" id="budget-settings"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="closeSettings()">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div id="edit-modal" class="overlay" style="display:none" onclick="closeEditOutside(event)">
+  <div class="modal">
+    <h3>✏ 編輯支出</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">金額</label>
+        <input class="inp" id="edit-amount" type="number">
+      </div>
+      <div class="form-group">
+        <label class="form-label">分類</label>
+        <select class="inp" id="edit-cat"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">項目</label>
+        <input class="inp" id="edit-item">
+      </div>
+      <div class="form-group">
+        <label class="form-label">日期</label>
+        <input class="inp" id="edit-date" type="date">
+      </div>
+      <div class="form-group full">
+        <label class="form-label">備註</label>
+        <input class="inp" id="edit-note">
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="closeEdit()">取消</button>
+      <button class="btn-pri" onclick="saveEdit()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const BIGCATS = [
+  {id:'life',  emoji:'🏠', name:'生活必需', color:'#a78bfa'},
+  {id:'fin',   emoji:'💰', name:'財務自由', color:'#34d399'},
+  {id:'edu',   emoji:'📚', name:'教育學習', color:'#60a5fa'},
+  {id:'goal',  emoji:'🎯', name:'長期目標', color:'#fbbf24'},
+  {id:'enjoy', emoji:'🎉', name:'享受生活', color:'#f472b6'},
+  {id:'give',  emoji:'❤️', name:'回饋他人', color:'#fb7185'},
+];
+
+const DEFAULT_ITEMS = [
+  {name:'房租',      bigcat:'life'},
+  {name:'水電',      bigcat:'life'},
+  {name:'食',        bigcat:'life'},
+  {name:'稅金',      bigcat:'fin'},
+  {name:'機車保養',  bigcat:'life'},
+  {name:'汽車保養',  bigcat:'life'},
+  {name:'信貸',      bigcat:'fin'},
+  {name:'保費人壽',  bigcat:'fin'},
+  {name:'保費產險',  bigcat:'fin'},
+  {name:'學習',      bigcat:'edu'},
+  {name:'娛樂',      bigcat:'enjoy'},
+  {name:'交通',      bigcat:'life'},
+  {name:'外縣市(北上)',bigcat:'life'},
+  {name:'電信',      bigcat:'life'},
+  {name:'業務開支',  bigcat:'fin'},
+  {name:'禾馨駐點',  bigcat:'fin'},
+  {name:'紅包',      bigcat:'give'},
+  {name:'家人',      bigcat:'give'},
+  {name:'s',         bigcat:'enjoy'},
+  {name:'健身',      bigcat:'enjoy'},
+  {name:'羽球',      bigcat:'enjoy'},
+  {name:'醫美',      bigcat:'enjoy'},
+  {name:'投資',      bigcat:'goal'},
+  {name:'儲蓄',      bigcat:'goal'},
+  {name:'罰單',      bigcat:'life'},
+];
+
+const QUICK_SHORTCUTS = [
+  {name:'早餐',amount:80,cat:'食',bigcat:'life'},
+  {name:'午餐',amount:120,cat:'食',bigcat:'life'},
+  {name:'晚餐',amount:150,cat:'食',bigcat:'life'},
+  {name:'交通',amount:50,cat:'交通',bigcat:'life'},
+  {name:'飲料',amount:60,cat:'娛樂',bigcat:'enjoy'},
+];
+
+let state = {
+  currentYear: new Date().getFullYear(),
+  currentMonth: new Date().getMonth() + 1, // 1-12
+  expenses: [],    // {id, date, item, cat, bigcat, amount, note}
+  income: {},      // {YYYY-MM: amount}
+  budgets: {},     // {bigcat_id: amount}
+  defaultItems: JSON.parse(JSON.stringify(DEFAULT_ITEMS)),
+  gasUrl: '',
+  sheetId: '',
+  filterBigcat: 'all',
+  editingId: null,
+};
+
+// ============================================================
+// PERSIST
+// ============================================================
+function save() {
+  localStorage.setItem('afe_state', JSON.stringify({
+    expenses: state.expenses,
+    income: state.income,
+    budgets: state.budgets,
+    defaultItems: state.defaultItems,
+    gasUrl: state.gasUrl,
+    sheetId: state.sheetId,
+  }));
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('afe_state') || '{}');
+    if (d.expenses) state.expenses = d.expenses;
+    if (d.income) state.income = d.income;
+    if (d.budgets) state.budgets = d.budgets;
+    if (d.defaultItems) state.defaultItems = d.defaultItems;
+    if (d.gasUrl) state.gasUrl = d.gasUrl;
+    if (d.sheetId) state.sheetId = d.sheetId;
+  } catch(e){}
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(n) {
+  return '$' + Math.round(n).toLocaleString('zh-TW');
+}
+function pct(a,b) {
+  return b > 0 ? Math.round(a/b*100) : 0;
+}
+function monthKey(y,m) {
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+function currentKey() {
+  return monthKey(state.currentYear, state.currentMonth);
+}
+function expensesForMonth(y,m) {
+  const k = monthKey(y,m);
+  return state.expenses.filter(e => e.date && e.date.startsWith(k));
+}
+function totalForMonth(y,m) {
+  return expensesForMonth(y,m).reduce((s,e)=>s+(+e.amount||0),0);
+}
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+function getBigcatColor(id) {
+  return BIGCATS.find(b=>b.id===id)?.color || '#ccc';
+}
+function getBigcat(id) {
+  return BIGCATS.find(b=>b.id===id);
+}
+function getItemBigcat(itemName) {
+  const di = state.defaultItems.find(d=>d.name===itemName);
+  return di ? di.bigcat : 'life';
+}
+
+// ============================================================
+// MONTH NAV
+// ============================================================
+function changeMonth(d) {
+  state.currentMonth += d;
+  if (state.currentMonth > 12) { state.currentMonth=1; state.currentYear++; }
+  if (state.currentMonth < 1)  { state.currentMonth=12; state.currentYear--; }
+  renderAll();
+}
+function updateMonthLabel() {
+  document.getElementById('month-label').textContent =
+    `${state.currentYear}年 ${state.currentMonth}月`;
+}
+
+// ============================================================
+// QUICK ADD
+// ============================================================
+function initForm() {
+  document.getElementById('q-date').value = today();
+  populateCatSelect('q-cat');
+  populateCatSelect('edit-cat');
+  populateCatSelect('new-item-bigcat', true);
+  const dl = document.getElementById('item-datalist');
+  dl.innerHTML = state.defaultItems.map(i=>`<option value="${i.name}">`).join('');
+}
+
+function populateCatSelect(id, isBigcat=false) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (isBigcat) {
+    el.innerHTML = BIGCATS.map(b=>`<option value="${b.id}">${b.emoji} ${b.name}</option>`).join('');
+  } else {
+    el.innerHTML = state.defaultItems.map(i=>`<option value="${i.name}">${i.name}</option>`).join('');
+  }
+}
+
+function quickAdd() {
+  const amount = +document.getElementById('q-amount').value;
+  const cat    = document.getElementById('q-cat').value;
+  const item   = document.getElementById('q-item').value || cat;
+  const date   = document.getElementById('q-date').value || today();
+  const note   = document.getElementById('q-note').value;
+  if (!amount || amount <= 0) { showToast('請輸入金額', 'error'); return; }
+  const bigcat = getItemBigcat(cat);
+  addExpense({amount, cat, item, date, note, bigcat});
+  document.getElementById('q-amount').value = '';
+  document.getElementById('q-note').value = '';
+  document.getElementById('q-item').value = '';
+}
+
+function addExpense(data) {
+  const exp = {
+    id: Date.now() + Math.random(),
+    date: data.date || today(),
+    item: data.item || data.cat,
+    cat: data.cat,
+    bigcat: data.bigcat || getItemBigcat(data.cat),
+    amount: +data.amount,
+    note: data.note || '',
+  };
+  state.expenses.push(exp);
+  save();
+  syncToSheets([exp]);
+  renderAll();
+  showToast('✅ 已新增：' + fmt(exp.amount));
+}
+
+// Quick shortcut buttons
+function renderQuickBtns() {
+  const el = document.getElementById('quick-btns');
+  el.innerHTML = QUICK_SHORTCUTS.map(s =>
+    `<button class="qbtn" onclick='useShortcut(${JSON.stringify(s)})'>${s.name} ${fmt(s.amount)}</button>`
+  ).join('');
+}
+function useShortcut(s) {
+  document.getElementById('q-amount').value = s.amount;
+  document.getElementById('q-cat').value = s.cat;
+  document.getElementById('q-item').value = s.name;
+  document.getElementById('q-date').value = today();
+}
+
+// ============================================================
+// DELETE / EDIT
+// ============================================================
+function deleteExpense(id) {
+  if (!confirm('確定刪除這筆支出？')) return;
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  save();
+  syncDeleteToSheets(id);
+  renderAll();
+  showToast('已刪除', 'error');
+}
+function openEdit(id) {
+  const e = state.expenses.find(x=>x.id===id);
+  if (!e) return;
+  state.editingId = id;
+  document.getElementById('edit-amount').value = e.amount;
+  document.getElementById('edit-cat').value = e.cat;
+  document.getElementById('edit-item').value = e.item;
+  document.getElementById('edit-date').value = e.date;
+  document.getElementById('edit-note').value = e.note;
+  document.getElementById('edit-modal').style.display='flex';
+}
+function closeEdit() { document.getElementById('edit-modal').style.display='none'; }
+function closeEditOutside(ev) { if(ev.target.id==='edit-modal') closeEdit(); }
+function saveEdit() {
+  const e = state.expenses.find(x=>x.id===state.editingId);
+  if (!e) return;
+  e.amount = +document.getElementById('edit-amount').value;
+  e.cat    = document.getElementById('edit-cat').value;
+  e.item   = document.getElementById('edit-item').value;
+  e.date   = document.getElementById('edit-date').value;
+  e.note   = document.getElementById('edit-note').value;
+  e.bigcat = getItemBigcat(e.cat);
+  save();
+  closeEdit();
+  renderAll();
+  showToast('✏ 已更新');
+}
+
+// ============================================================
+// RENDER KPI
+// ============================================================
+function renderKPI() {
+  const y = state.currentYear, m = state.currentMonth;
+  const cur = totalForMonth(y,m);
+  const prev = totalForMonth(m>1?y:y-1, m>1?m-1:12);
+  const income = +(state.income[currentKey()] || state.income['default'] || 0);
+
+  document.getElementById('kpi-total').textContent = fmt(cur);
+  const diff = prev > 0 ? Math.round((cur-prev)/prev*100) : 0;
+  const diffEl = document.getElementById('kpi-diff');
+  if (prev > 0) {
+    diffEl.textContent = (diff>=0?'▲':'▼') + Math.abs(diff) + '% vs 上月';
+    diffEl.style.color = diff>0?'var(--coral)':'var(--green)';
+  } else diffEl.textContent = '';
+
+  const savingRate = income>0 ? Math.max(0,Math.round((income-cur)/income*100)) : 0;
+  document.getElementById('kpi-saving').textContent = savingRate + '%';
+
+  const totalBudget = Object.values(state.budgets).reduce((s,v)=>s+(+v||0),0);
+  const budgetPct = pct(cur, totalBudget);
+  document.getElementById('kpi-budget-used').textContent = budgetPct + '%';
+  document.getElementById('kpi-count').textContent = expensesForMonth(y,m).length;
+}
+
+// ============================================================
+// RENDER CATEGORY CARDS
+// ============================================================
+function renderCatCards() {
+  const exps = expensesForMonth(state.currentYear, state.currentMonth);
+  const total = exps.reduce((s,e)=>s+(+e.amount||0),0);
+  const el = document.getElementById('cat-row');
+  el.innerHTML = BIGCATS.map(bc => {
+    const sum = exps.filter(e=>e.bigcat===bc.id).reduce((s,e)=>s+(+e.amount||0),0);
+    const p = pct(sum,total);
+    return `<div class="cat-card" style="border-top:3px solid ${bc.color}">
+      <div class="cat-emoji">${bc.emoji}</div>
+      <div class="cat-name">${bc.name}</div>
+      <div class="cat-amount" style="color:${bc.color}">${fmt(sum)}</div>
+      <div class="cat-pct">${p}%</div>
+      <div class="cat-pct-bar"><div class="cat-pct-fill" style="width:${p}%;background:${bc.color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// RENDER BUDGET SIDEBAR
+// ============================================================
+function renderBudgetSidebar() {
+  const exps = expensesForMonth(state.currentYear, state.currentMonth);
+  const el = document.getElementById('budget-list');
+  el.innerHTML = BIGCATS.map(bc => {
+    const spent = exps.filter(e=>e.bigcat===bc.id).reduce((s,e)=>s+(+e.amount||0),0);
+    const budget = +(state.budgets[bc.id] || 0);
+    const p = pct(spent,budget);
+    const over = budget>0 && spent>budget;
+    return `<div class="budget-item ${over?'budget-over':''}">
+      <div class="budget-header">
+        <span class="budget-name" style="color:${bc.color}">${bc.emoji} ${bc.name}</span>
+        <span class="budget-nums">${fmt(spent)}${budget>0?' / '+fmt(budget):''}</span>
+      </div>
+      ${budget>0?`<div class="budget-bar-bg">
+        <div class="budget-bar-fill" style="width:${Math.min(p,100)}%;background:${bc.color}"></div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// CHARTS
+// ============================================================
+let lineChart, pieChart, barChart;
+
+function renderCharts() {
+  renderLineChart();
+  renderPieChart();
+  renderBarChart();
+}
+
+function renderLineChart() {
+  const labels = Array.from({length:12},(_,i)=>`${i+1}月`);
+  const data = labels.map((_,i)=>totalForMonth(state.currentYear, i+1));
+  if (lineChart) { lineChart.data.datasets[0].data=data; lineChart.update(); return; }
+  lineChart = new Chart(document.getElementById('line-chart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label:'月支出',data,
+        borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.12)',
+        tension:.4,fill:true,pointBackgroundColor:'#8b5cf6',pointRadius:4,
+        pointHoverRadius:7
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)}}},
+      scales:{
+        y:{beginAtZero:true,grid:{color:'rgba(139,92,246,0.08)'},
+          ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:10}}},
+        x:{grid:{display:false},ticks:{font:{size:10}}}
+      },
+      animation:{duration:600}
+    }
+  });
+}
+
+function renderPieChart() {
+  const exps = expensesForMonth(state.currentYear, state.currentMonth);
+  const data  = BIGCATS.map(bc=>exps.filter(e=>e.bigcat===bc.id).reduce((s,e)=>s+(+e.amount||0),0));
+  const labels= BIGCATS.map(bc=>bc.emoji+' '+bc.name);
+  const colors= BIGCATS.map(bc=>bc.color);
+  if (pieChart) {
+    pieChart.data.datasets[0].data=data;
+    pieChart.update(); return;
+  }
+  pieChart = new Chart(document.getElementById('pie-chart'), {
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:10,padding:6}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${fmt(c.raw)} (${pct(c.raw,c.dataset.data.reduce((a,b)=>a+b,0))}%)`}}
+      },
+      animation:{animateRotate:true,duration:700}
+    }
+  });
+}
+
+function renderBarChart() {
+  const exps  = expensesForMonth(state.currentYear, state.currentMonth);
+  const labels= BIGCATS.map(bc=>bc.emoji);
+  const actual= BIGCATS.map(bc=>exps.filter(e=>e.bigcat===bc.id).reduce((s,e)=>s+(+e.amount||0),0));
+  const budget= BIGCATS.map(bc=>+(state.budgets[bc.id]||0));
+  if (barChart) {
+    barChart.data.datasets[0].data=actual;
+    barChart.data.datasets[1].data=budget;
+    barChart.update(); return;
+  }
+  barChart = new Chart(document.getElementById('bar-chart'), {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'實際',data:actual,backgroundColor:BIGCATS.map(b=>b.color+'cc'),borderRadius:6},
+      {label:'預算',data:budget,backgroundColor:'rgba(0,0,0,0.06)',borderRadius:6,borderWidth:1.5,
+       borderColor:BIGCATS.map(b=>b.color)}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:10}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.raw)}}
+      },
+      scales:{
+        y:{beginAtZero:true,grid:{color:'rgba(139,92,246,0.08)'},ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9}}},
+        x:{grid:{display:false},ticks:{font:{size:11}}}
+      },
+      animation:{duration:600}
+    }
+  });
+}
+
+// ============================================================
+// TABLE
+// ============================================================
+function renderTable() {
+  const exps = expensesForMonth(state.currentYear, state.currentMonth);
+  const search = document.getElementById('search-inp').value.toLowerCase();
+  let filtered = exps;
+  if (state.filterBigcat !== 'all') filtered = filtered.filter(e=>e.bigcat===state.filterBigcat);
+  if (search) filtered = filtered.filter(e=>
+    (e.item||'').toLowerCase().includes(search) ||
+    (e.cat||'').toLowerCase().includes(search) ||
+    (e.note||'').toLowerCase().includes(search)
+  );
+  filtered.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const tbody = document.getElementById('expense-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text3)">本月尚無支出紀錄</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(e => {
+    const bc = getBigcat(e.bigcat);
+    const color = bc?.color || '#ccc';
+    return `<tr>
+      <td>${e.date}</td>
+      <td><strong>${e.item||e.cat}</strong></td>
+      <td><span class="tag" style="background:${color}22;color:${color}">${e.cat}</span></td>
+      <td><span style="font-size:.7rem;color:${color}">${bc?.emoji||''} ${bc?.name||''}</span></td>
+      <td class="amount-cell" style="color:${color}">${fmt(e.amount)}</td>
+      <td style="color:var(--text2);font-size:.78rem">${e.note||''}</td>
+      <td>
+        <button class="edit-btn" onclick="openEdit(${e.id})" title="編輯">✏</button>
+        <button class="del-btn" onclick="deleteExpense(${e.id})" title="刪除">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderFilterChips() {
+  const el = document.getElementById('filter-chips');
+  el.innerHTML = [
+    `<button class="filter-chip ${state.filterBigcat==='all'?'active':''}" onclick="setFilter('all')">全部</button>`,
+    ...BIGCATS.map(bc =>
+      `<button class="filter-chip ${state.filterBigcat===bc.id?'active':''}" onclick="setFilter('${bc.id}')">${bc.emoji} ${bc.name}</button>`
+    )
+  ].join('');
+}
+function setFilter(f) { state.filterBigcat=f; renderFilterChips(); renderTable(); }
+
+// ============================================================
+// INCOME
+// ============================================================
+function saveIncome() {
+  const v = +document.getElementById('income-val').value;
+  state.income[currentKey()] = v;
+  state.income['default'] = v;
+  save();
+  renderKPI();
+}
+function loadIncome() {
+  const v = state.income[currentKey()] || state.income['default'] || '';
+  document.getElementById('income-val').value = v || '';
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function openSettings() {
+  document.getElementById('gas-url').value = state.gasUrl;
+  document.getElementById('sheet-id').value = state.sheetId;
+  renderItemsList();
+  renderBudgetSettings();
+  document.getElementById('settings-modal').style.display='flex';
+}
+function closeSettings() { document.getElementById('settings-modal').style.display='none'; }
+function closeSettingsOutside(ev) { if(ev.target.id==='settings-modal') closeSettings(); }
+
+function saveSheetConfig() {
+  state.gasUrl = document.getElementById('gas-url').value.trim();
+  state.sheetId = document.getElementById('sheet-id').value.trim();
+  save();
+  updateSheetsStatus();
+  showToast('✅ 連線設定已儲存');
+}
+
+function renderItemsList() {
+  const el = document.getElementById('items-list');
+  el.innerHTML = state.defaultItems.map((it,i) => {
+    const bc = getBigcat(it.bigcat);
+    return `<div class="cat-manage-item">
+      <input value="${it.name}" onchange="state.defaultItems[${i}].name=this.value;save();initForm()">
+      <select onchange="state.defaultItems[${i}].bigcat=this.value;save()">
+        ${BIGCATS.map(b=>`<option value="${b.id}" ${b.id===it.bigcat?'selected':''}>${b.emoji}${b.name}</option>`).join('')}
+      </select>
+      <button onclick="removeItem(${i})" title="刪除">🗑</button>
+    </div>`;
+  }).join('');
+}
+function removeItem(i) {
+  state.defaultItems.splice(i,1); save(); renderItemsList(); initForm();
+}
+function addDefaultItem() {
+  const name = document.getElementById('new-item-name').value.trim();
+  const bigcat = document.getElementById('new-item-bigcat').value;
+  if (!name) return;
+  state.defaultItems.push({name,bigcat});
+  document.getElementById('new-item-name').value = '';
+  save(); renderItemsList(); initForm();
+}
+
+function renderBudgetSettings() {
+  const el = document.getElementById('budget-settings');
+  el.innerHTML = BIGCATS.map(bc => `
+    <div class="budget-setting-item">
+      <label>${bc.emoji} ${bc.name}</label>
+      <input class="inp" type="number" placeholder="月預算" value="${state.budgets[bc.id]||''}"
+        oninput="state.budgets['${bc.id}']=+this.value;save();renderBudgetSidebar();renderCharts()">
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// GOOGLE SHEETS SYNC
+// ============================================================
+function updateSheetsStatus() {
+  const el = document.getElementById('sheets-status');
+  if (!state.gasUrl) {
+    el.textContent='⚠ 未連線'; el.className='pending';
+  } else {
+    el.textContent='✅ 已連線'; el.className='ok';
+  }
+}
+
+async function syncToSheets(exps) {
+  if (!state.gasUrl) return;
+  try {
+    await fetch(state.gasUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'addExpenses', expenses: exps})
+    });
+  } catch(e){ console.warn('Sheets sync failed', e); }
+}
+
+async function syncDeleteToSheets(id) {
+  if (!state.gasUrl) return;
+  try {
+    await fetch(state.gasUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'deleteExpense', id})
+    });
+  } catch(e){ console.warn('Sheets delete sync failed', e); }
+}
+
+async function pullFromSheets() {
+  if (!state.gasUrl) return;
+  try {
+    const res = await fetch(state.gasUrl + '?action=getAll');
+    const data = await res.json();
+    if (data.expenses) {
+      state.expenses = data.expenses;
+      save(); renderAll();
+      showToast('✅ 已從 Sheets 同步資料');
+    }
+  } catch(e){ console.warn('Pull failed', e); }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2500);
+}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll() {
+  updateMonthLabel();
+  loadIncome();
+  renderKPI();
+  renderCatCards();
+  renderBudgetSidebar();
+  renderCharts();
+  renderFilterChips();
+  renderTable();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  load();
+  initForm();
+  renderQuickBtns();
+  updateSheetsStatus();
+  renderAll();
+}
+
+init();
+</script>
+</body>
+</html>
