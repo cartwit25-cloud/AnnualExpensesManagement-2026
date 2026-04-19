@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>💰 AnnualExpensesManagement-2026</title>
+<title>💸 AnnualExpensesManagement-2026</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -240,6 +240,41 @@ select.inp option{background:var(--surface);color:var(--text)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--accent3);border-radius:40px}
 
+/* ---- SYNC PILL ---- */
+#sync-pill{
+  position:fixed;bottom:20px;right:24px;z-index:50;
+  display:flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,0.82);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1.5px solid var(--border);
+  border-radius:40px;padding:7px 16px 7px 12px;
+  box-shadow:0 4px 20px rgba(139,92,246,0.13);
+  font-size:.75rem;color:var(--text2);font-weight:600;
+  transition:opacity .3s,transform .3s;
+  cursor:default;user-select:none;
+}
+#sync-pill:hover{
+  background:rgba(255,255,255,0.97);
+  box-shadow:0 6px 28px rgba(139,92,246,0.18);
+  transform:translateY(-2px);
+}
+#sync-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  background:var(--text3);
+  transition:background .4s;
+}
+#sync-dot.syncing{
+  background:var(--amber);
+  animation:pulse-dot 1s infinite;
+}
+#sync-dot.ok{ background:var(--green); }
+#sync-dot.err{ background:var(--coral); }
+#sync-dot.local{ background:var(--accent3); }
+@keyframes pulse-dot{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.5;transform:scale(1.35)}
+}
+
 /* Responsive */
 @media(max-width:900px){
   #sidebar{width:220px;min-width:180px}
@@ -444,6 +479,12 @@ select.inp option{background:var(--surface);color:var(--text)}
   </div>
 </div>
 
+<!-- SYNC PILL -->
+<div id="sync-pill" title="最後同步時間">
+  <span id="sync-dot" class="local"></span>
+  <span id="sync-text">最後儲存：載入中</span>
+</div>
+
 <script>
 // ============================================================
 // STATE
@@ -518,6 +559,11 @@ function save() {
     gasUrl: state.gasUrl,
     sheetId: state.sheetId,
   }));
+  // 更新本地儲存時間戳（若目前非同步中狀態才更新）
+  const dot = document.getElementById('sync-dot');
+  if (dot && !dot.classList.contains('syncing')) {
+    setSyncPill('local');
+  }
 }
 function load() {
   try {
@@ -970,50 +1016,90 @@ function renderBudgetSettings() {
 }
 
 // ============================================================
+// SYNC PILL
+// ============================================================
+function setSyncPill(state, timeLabel) {
+  // state: 'syncing' | 'ok' | 'err' | 'local'
+  const dot  = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  dot.className = state;
+  const prefix = {
+    syncing: '同步中…',
+    ok:      '最後同步：',
+    err:     '同步失敗：',
+    local:   '最後儲存：',
+  }[state] || '最後儲存：';
+  text.textContent = prefix + (timeLabel || nowTimeStr());
+}
+
+function nowTimeStr() {
+  return new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'});
+}
+
+// ============================================================
 // GOOGLE SHEETS SYNC
 // ============================================================
 function updateSheetsStatus() {
   const el = document.getElementById('sheets-status');
   if (!state.gasUrl) {
     el.textContent='⚠ 未連線'; el.className='pending';
+    setSyncPill('local');
   } else {
     el.textContent='✅ 已連線'; el.className='ok';
   }
 }
 
 async function syncToSheets(exps) {
+  // Always update local timestamp immediately
+  setSyncPill('local');
   if (!state.gasUrl) return;
+  setSyncPill('syncing');
   try {
     await fetch(state.gasUrl, {
       method:'POST', mode:'no-cors',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action:'addExpenses', expenses: exps})
     });
-  } catch(e){ console.warn('Sheets sync failed', e); }
+    setSyncPill('ok');
+  } catch(e){
+    console.warn('Sheets sync failed', e);
+    setSyncPill('err');
+  }
 }
 
 async function syncDeleteToSheets(id) {
+  setSyncPill('local');
   if (!state.gasUrl) return;
+  setSyncPill('syncing');
   try {
     await fetch(state.gasUrl, {
       method:'POST', mode:'no-cors',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action:'deleteExpense', id})
     });
-  } catch(e){ console.warn('Sheets delete sync failed', e); }
+    setSyncPill('ok');
+  } catch(e){
+    console.warn('Sheets delete sync failed', e);
+    setSyncPill('err');
+  }
 }
 
 async function pullFromSheets() {
   if (!state.gasUrl) return;
+  setSyncPill('syncing');
   try {
     const res = await fetch(state.gasUrl + '?action=getAll');
     const data = await res.json();
     if (data.expenses) {
       state.expenses = data.expenses;
       save(); renderAll();
+      setSyncPill('ok');
       showToast('✅ 已從 Sheets 同步資料');
     }
-  } catch(e){ console.warn('Pull failed', e); }
+  } catch(e){
+    console.warn('Pull failed', e);
+    setSyncPill('err');
+  }
 }
 
 // ============================================================
@@ -1050,6 +1136,8 @@ function init() {
   renderQuickBtns();
   updateSheetsStatus();
   renderAll();
+  // 初始顯示本地儲存時間
+  setSyncPill('local');
 }
 
 init();
