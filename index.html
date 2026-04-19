@@ -167,6 +167,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 table{width:100%;border-collapse:collapse}
 thead th{font-size:.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;
   letter-spacing:.06em;padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)}
+thead th.sortable{cursor:pointer;user-select:none;white-space:nowrap;transition:var(--transition)}
+thead th.sortable:hover{color:var(--accent)}
+thead th.sort-active{color:var(--accent)}
+.sort-icon{display:inline-block;margin-left:4px;font-size:.65rem;opacity:.5;transition:var(--transition)}
+thead th.sort-active .sort-icon{opacity:1;color:var(--accent)}
 tbody tr{transition:var(--transition);cursor:default}
 tbody tr:hover{background:var(--surface2)}
 tbody td{padding:8px 10px;font-size:.82rem;border-bottom:1px solid var(--border)40}
@@ -426,9 +431,7 @@ select.inp option{background:var(--surface);color:var(--text)}
       <div style="overflow-x:auto">
         <table>
           <thead>
-            <tr>
-              <th>日期</th><th>項目</th><th>分類</th><th>大類</th><th>金額</th><th>備註</th><th></th>
-            </tr>
+            <tr id="table-head-row"></tr>
           </thead>
           <tbody id="expense-tbody"></tbody>
         </table>
@@ -560,20 +563,22 @@ const QUICK_SHORTCUTS = [
   {name:'午餐',amount:120,cat:'食',bigcat:'life'},
   {name:'晚餐',amount:150,cat:'食',bigcat:'life'},
   {name:'交通',amount:50,cat:'交通',bigcat:'life'},
-  {name:'飲料',amount:60,cat:'食',bigcat:'life'},
+  {name:'飲料',amount:60,cat:'娛樂',bigcat:'enjoy'},
 ];
 
 let state = {
   currentYear: new Date().getFullYear(),
-  currentMonth: new Date().getMonth() + 1, // 1-12
-  expenses: [],    // {id, date, item, cat, bigcat, amount, note}
-  income: {},      // {YYYY-MM: amount}
-  budgets: {},     // {bigcat_id: amount}
+  currentMonth: new Date().getMonth() + 1,
+  expenses: [],
+  income: {},
+  budgets: {},
   defaultItems: JSON.parse(JSON.stringify(DEFAULT_ITEMS)),
   gasUrl: '',
   sheetId: '',
   filterBigcat: 'all',
   editingId: null,
+  sortCol: 'date',   // 目前排序欄位：date | item | cat | bigcat | amount | note
+  sortDir: 'desc',   // 'asc' | 'desc'
 };
 
 // ============================================================
@@ -926,7 +931,59 @@ function renderBarChart() {
 // ============================================================
 // TABLE
 // ============================================================
+const TABLE_COLS = [
+  {key:'date',   label:'日期'},
+  {key:'item',   label:'項目'},
+  {key:'cat',    label:'分類'},
+  {key:'bigcat', label:'大類'},
+  {key:'amount', label:'金額'},
+  {key:'note',   label:'備註'},
+];
+
+function setSort(col) {
+  if (state.sortCol === col) {
+    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortCol = col;
+    state.sortDir = col === 'amount' ? 'desc' : 'asc'; // 金額預設大到小
+  }
+  renderTable();
+}
+
+function renderTableHead() {
+  const row = document.getElementById('table-head-row');
+  if (!row) return;
+  const cols = TABLE_COLS.map(c => {
+    const isActive = state.sortCol === c.key;
+    const icon = isActive ? (state.sortDir === 'asc' ? '↑' : '↓') : '↕';
+    return `<th class="sortable${isActive?' sort-active':''}" onclick="setSort('${c.key}')">
+      ${c.label}<span class="sort-icon">${icon}</span>
+    </th>`;
+  });
+  cols.push('<th></th>'); // 操作欄
+  row.innerHTML = cols.join('');
+}
+
+function sortExpenses(arr) {
+  const col = state.sortCol;
+  const dir = state.sortDir === 'asc' ? 1 : -1;
+  return [...arr].sort((a, b) => {
+    let va = a[col] ?? '';
+    let vb = b[col] ?? '';
+    if (col === 'amount') {
+      return (Number(va) - Number(vb)) * dir;
+    }
+    if (col === 'bigcat') {
+      // 用大類中文名排
+      va = getBigcat(va)?.name ?? va;
+      vb = getBigcat(vb)?.name ?? vb;
+    }
+    return String(va).localeCompare(String(vb), 'zh-TW') * dir;
+  });
+}
+
 function renderTable() {
+  renderTableHead();
   const exps = expensesForMonth(state.currentYear, state.currentMonth);
   const search = document.getElementById('search-inp').value.toLowerCase();
   let filtered = exps;
@@ -936,7 +993,7 @@ function renderTable() {
     (e.cat||'').toLowerCase().includes(search) ||
     (e.note||'').toLowerCase().includes(search)
   );
-  filtered.sort((a,b)=>b.date.localeCompare(a.date));
+  filtered = sortExpenses(filtered);
 
   const tbody = document.getElementById('expense-tbody');
   if (!filtered.length) {
