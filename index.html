@@ -241,8 +241,11 @@ select.inp option{background:var(--surface);color:var(--text)}
 ::-webkit-scrollbar-thumb{background:var(--accent3);border-radius:40px}
 
 /* ---- SYNC PILL ---- */
-#sync-pill{
+#sync-area{
   position:fixed;bottom:20px;right:24px;z-index:50;
+  display:flex;align-items:center;gap:8px;
+}
+#sync-pill{
   display:flex;align-items:center;gap:7px;
   background:rgba(255,255,255,0.82);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
@@ -257,6 +260,27 @@ select.inp option{background:var(--surface);color:var(--text)}
   background:rgba(255,255,255,0.97);
   box-shadow:0 6px 28px rgba(139,92,246,0.18);
   transform:translateY(-2px);
+}
+#backup-btn{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,0.82);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1.5px solid var(--border);
+  border-radius:40px;padding:7px 14px;
+  box-shadow:0 4px 20px rgba(139,92,246,0.13);
+  font-size:.75rem;color:var(--text2);font-weight:700;
+  cursor:pointer;transition:var(--transition);
+  white-space:nowrap;
+}
+#backup-btn:hover{
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  color:#fff;border-color:transparent;
+  box-shadow:0 6px 28px rgba(139,92,246,0.25);
+  transform:translateY(-2px);
+}
+#backup-btn:active{ transform:translateY(0); }
+#backup-btn.backing{
+  pointer-events:none;opacity:.7;
 }
 #sync-dot{
   width:8px;height:8px;border-radius:50%;flex-shrink:0;
@@ -479,10 +503,15 @@ select.inp option{background:var(--surface);color:var(--text)}
   </div>
 </div>
 
-<!-- SYNC PILL -->
-<div id="sync-pill" title="最後同步時間">
-  <span id="sync-dot" class="local"></span>
-  <span id="sync-text">最後儲存：載入中</span>
+<!-- SYNC AREA：同步狀態 + 手動備份按鈕 -->
+<div id="sync-area">
+  <button id="backup-btn" onclick="manualBackup()" title="備份全部資料到 Google Sheets 新分頁">
+    ☁ 手動備份
+  </button>
+  <div id="sync-pill" title="最後同步時間">
+    <span id="sync-dot" class="local"></span>
+    <span id="sync-text">最後儲存：載入中</span>
+  </div>
 </div>
 
 <script>
@@ -505,7 +534,7 @@ const DEFAULT_ITEMS = [
   {name:'稅金',      bigcat:'fin'},
   {name:'機車保養',  bigcat:'life'},
   {name:'汽車保養',  bigcat:'life'},
-  {name:'信貸',      bigcat:'life'},
+  {name:'信貸',      bigcat:'fin'},
   {name:'保費人壽',  bigcat:'fin'},
   {name:'保費產險',  bigcat:'fin'},
   {name:'學習',      bigcat:'edu'},
@@ -513,11 +542,11 @@ const DEFAULT_ITEMS = [
   {name:'交通',      bigcat:'life'},
   {name:'外縣市(北上)',bigcat:'life'},
   {name:'電信',      bigcat:'life'},
-  {name:'業務開支',  bigcat:'give'},
+  {name:'業務開支',  bigcat:'fin'},
   {name:'禾馨駐點',  bigcat:'fin'},
   {name:'紅包',      bigcat:'give'},
   {name:'家人',      bigcat:'give'},
-  {name:'s',         bigcat:'life'},
+  {name:'s',         bigcat:'enjoy'},
   {name:'健身',      bigcat:'enjoy'},
   {name:'羽球',      bigcat:'enjoy'},
   {name:'醫美',      bigcat:'enjoy'},
@@ -1038,7 +1067,12 @@ function nowTimeStr() {
 
 // ============================================================
 // GOOGLE SHEETS SYNC
+// 策略：localStorage 永遠是主資料來源
+//       每次有變動就把「全部資料」整批覆寫到 Sheets
+//       Sheets 刪掉也沒關係，下次操作就會完整還原
 // ============================================================
+let _syncTimer = null; // debounce 用
+
 function updateSheetsStatus() {
   const el = document.getElementById('sheets-status');
   if (!state.gasUrl) {
@@ -1049,41 +1083,63 @@ function updateSheetsStatus() {
   }
 }
 
-async function syncToSheets(exps) {
-  // Always update local timestamp immediately
+// 唯一對外的同步入口，所有操作都呼叫這個
+// debounce 300ms，避免快速連點重複送出
+function triggerSync() {
   setSyncPill('local');
+  if (!state.gasUrl) return;
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => fullPushToSheets(), 300);
+}
+
+// 把 localStorage 全部資料整批覆寫到 Sheets
+async function fullPushToSheets() {
   if (!state.gasUrl) return;
   setSyncPill('syncing');
   try {
     await fetch(state.gasUrl, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'addExpenses', expenses: exps})
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        action: 'overwriteAll',          // Sheets 端清空再寫入
+        expenses: state.expenses,
+      })
     });
     setSyncPill('ok');
-  } catch(e){
-    console.warn('Sheets sync failed', e);
+  } catch(e) {
+    console.warn('Sheets full push failed', e);
     setSyncPill('err');
   }
 }
 
-async function syncDeleteToSheets(id) {
-  setSyncPill('local');
+// 舊介面保留，內部改呼叫 triggerSync
+function syncToSheets(_exps)    { triggerSync(); }
+function syncDeleteToSheets(_id){ triggerSync(); }
+
+// 頁面載入時：若 Sheets 有資料且本地是空的，才從 Sheets 拉（災難復原用）
+async function pullFromSheetsIfLocalEmpty() {
   if (!state.gasUrl) return;
+  if (state.expenses.length > 0) return; // 本地有資料，不覆蓋
   setSyncPill('syncing');
   try {
-    await fetch(state.gasUrl, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'deleteExpense', id})
-    });
-    setSyncPill('ok');
-  } catch(e){
-    console.warn('Sheets delete sync failed', e);
-    setSyncPill('err');
+    const res = await fetch(state.gasUrl + '?action=getAll');
+    const data = await res.json();
+    if (data.expenses && data.expenses.length > 0) {
+      state.expenses = data.expenses;
+      save(); renderAll();
+      setSyncPill('ok');
+      showToast('✅ 已從 Sheets 還原資料（本地原為空）');
+    } else {
+      setSyncPill('local');
+    }
+  } catch(e) {
+    console.warn('Pull failed', e);
+    setSyncPill('local');
   }
 }
 
+// 手動強制從 Sheets 拉（設定頁按鈕用，覆蓋本地）
 async function pullFromSheets() {
   if (!state.gasUrl) return;
   setSyncPill('syncing');
@@ -1096,9 +1152,91 @@ async function pullFromSheets() {
       setSyncPill('ok');
       showToast('✅ 已從 Sheets 同步資料');
     }
-  } catch(e){
+  } catch(e) {
     console.warn('Pull failed', e);
     setSyncPill('err');
+  }
+}
+
+// ============================================================
+// 備份功能
+// 策略：備份到獨立分頁（備份_YYYY-MM 或 備份_YYYY-MM_手動）
+//       主資料分頁（支出紀錄）完全不動
+//       每月自動備份一次，手動可隨時觸發
+// ============================================================
+
+// 取得今天的 YYYY-MM 字串
+function backupMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+// 檢查本月是否已做過自動備份（存在 localStorage）
+function hasAutoBackedUpThisMonth() {
+  return localStorage.getItem('afe_last_auto_backup') === backupMonthKey();
+}
+function markAutoBackup() {
+  localStorage.setItem('afe_last_auto_backup', backupMonthKey());
+}
+
+// 手動備份：帶時間戳的分頁名
+async function manualBackup() {
+  if (!state.gasUrl) {
+    showToast('⚠ 請先設定 Google Sheets 連線', 'error'); return;
+  }
+  if (state.expenses.length === 0) {
+    showToast('⚠ 目前沒有資料可備份', 'error'); return;
+  }
+  const btn = document.getElementById('backup-btn');
+  btn.classList.add('backing');
+  btn.textContent = '備份中…';
+
+  const now = new Date();
+  const timeStr = `${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
+  const sheetName = `備份_${backupMonthKey()}_手動_${timeStr}`;
+
+  const ok = await sendBackup(sheetName);
+  btn.classList.remove('backing');
+  btn.innerHTML = '☁ 手動備份';
+
+  if (ok) {
+    showToast(`✅ 已備份到分頁「${sheetName}」`);
+  } else {
+    showToast('❌ 備份失敗，請確認連線設定', 'error');
+  }
+}
+
+// 每月自動備份（頁面載入時觸發，每月只跑一次）
+async function autoMonthlyBackupIfNeeded() {
+  if (!state.gasUrl) return;
+  if (state.expenses.length === 0) return;
+  if (hasAutoBackedUpThisMonth()) return;
+
+  const sheetName = `備份_${backupMonthKey()}_自動`;
+  const ok = await sendBackup(sheetName);
+  if (ok) {
+    markAutoBackup();
+    showToast(`📦 已自動備份本月資料到「${sheetName}」`);
+  }
+}
+
+// 實際送出備份請求到 GAS
+async function sendBackup(sheetName) {
+  try {
+    await fetch(state.gasUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        action: 'backupToSheet',
+        sheetName,
+        expenses: state.expenses,
+      })
+    });
+    return true;
+  } catch(e) {
+    console.warn('Backup failed', e);
+    return false;
   }
 }
 
@@ -1136,8 +1274,11 @@ function init() {
   renderQuickBtns();
   updateSheetsStatus();
   renderAll();
-  // 初始顯示本地儲存時間
   setSyncPill('local');
+  // 若本地是空的才嘗試從 Sheets 拉回（不覆蓋本地既有資料）
+  pullFromSheetsIfLocalEmpty();
+  // 每月自動備份一次（不重複）
+  setTimeout(() => autoMonthlyBackupIfNeeded(), 3000);
 }
 
 init();
