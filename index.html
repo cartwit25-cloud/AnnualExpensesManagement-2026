@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>💸 AnnualExpensesManagement-2026</title>
+<title>💰 年度花費管理</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -240,6 +240,63 @@ select.inp option{background:var(--surface);color:var(--text)}
 .toast.success{background:linear-gradient(135deg,var(--teal),var(--green))}
 .toast.error{background:linear-gradient(135deg,var(--coral),var(--pink))}
 
+/* ---- MATRIX TABLE ---- */
+#matrix-card{
+  background:var(--surface);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow);border:1px solid var(--border);
+}
+#matrix-card .section-title{margin-bottom:12px}
+.matrix-wrap{overflow-x:auto}
+.matrix-table{width:100%;border-collapse:collapse;font-size:.76rem;min-width:700px}
+.matrix-table th{
+  padding:7px 10px;font-weight:700;white-space:nowrap;
+  border-bottom:2px solid var(--border);
+  background:var(--surface2);
+}
+.matrix-table th.m-month{
+  text-align:center;color:var(--text2);font-size:.7rem;
+  letter-spacing:.04em;min-width:62px;
+}
+.matrix-table th.m-label{
+  text-align:left;color:var(--text);min-width:120px;
+  border-right:2px solid var(--border);
+}
+.matrix-table th.m-total-col{
+  text-align:right;color:var(--accent);font-size:.78rem;
+  border-left:2px solid var(--border);background:var(--surface2);
+}
+.matrix-table td{
+  padding:6px 10px;text-align:right;
+  border-bottom:1px solid var(--border)40;
+  font-family:'Nunito',sans-serif;font-weight:600;
+  transition:background var(--transition);
+  white-space:nowrap;
+}
+.matrix-table td.m-label-cell{
+  text-align:left;font-family:'Noto Sans TC',sans-serif;
+  font-size:.78rem;font-weight:700;
+  border-right:2px solid var(--border);
+  white-space:nowrap;
+}
+.matrix-table td.m-total-col{
+  font-weight:800;color:var(--accent);
+  border-left:2px solid var(--border);
+  background:var(--surface2);
+}
+.matrix-table td.m-zero{ color:var(--text3);font-weight:400; }
+.matrix-table tr.m-current-month td{ background:rgba(139,92,246,0.04); }
+.matrix-table tr.m-total-row td{
+  font-weight:800;border-top:2px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:.8rem;
+}
+.matrix-table tr.m-total-row td.m-total-col{ color:var(--accent); }
+.matrix-table tbody tr:hover td{ background:rgba(139,92,246,0.06); }
+.matrix-table tbody tr:hover td.m-total-col{ background:rgba(139,92,246,0.10); }
+.m-cur-badge{
+  display:inline-block;background:var(--accent);color:#fff;
+  border-radius:4px;font-size:.58rem;padding:1px 5px;margin-left:4px;vertical-align:middle;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -322,7 +379,7 @@ select.inp option{background:var(--surface);color:var(--text)}
 
 <!-- TOP BAR -->
 <div id="topbar">
-  <span class="logo">💸 AnnualExpensesManagement-2026</span>
+  <span class="logo">💸 年度花費管理</span>
   <div class="month-nav">
     <button onclick="changeMonth(-1)">‹</button>
     <span id="month-label">2025年 1月</span>
@@ -419,6 +476,19 @@ select.inp option{background:var(--surface);color:var(--text)}
     <div>
       <div class="section-title">🎨 支出分類</div>
       <div id="cat-row"></div>
+    </div>
+
+    <!-- Annual Matrix Table -->
+    <div id="matrix-card">
+      <div class="section-title">📅 年度支出矩陣（${new Date().getFullYear()}）
+        <span style="font-size:.72rem;color:var(--text3);font-weight:500;margin-left:6px">縱軸：大類　橫軸：月份</span>
+      </div>
+      <div class="matrix-wrap">
+        <table class="matrix-table">
+          <thead id="matrix-thead"></thead>
+          <tbody id="matrix-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Expense Table -->
@@ -534,26 +604,26 @@ const DEFAULT_ITEMS = [
   {name:'房租',      bigcat:'life'},
   {name:'水電',      bigcat:'life'},
   {name:'食',        bigcat:'life'},
-  {name:'稅金',      bigcat:'life'},
+  {name:'稅金',      bigcat:'fin'},
   {name:'機車保養',  bigcat:'life'},
   {name:'汽車保養',  bigcat:'life'},
-  {name:'信貸',      bigcat:'life'},
-  {name:'保費人壽',  bigcat:'life'},
-  {name:'保費產險',  bigcat:'life'},
+  {name:'信貸',      bigcat:'fin'},
+  {name:'保費人壽',  bigcat:'fin'},
+  {name:'保費產險',  bigcat:'fin'},
   {name:'學習',      bigcat:'edu'},
   {name:'娛樂',      bigcat:'enjoy'},
   {name:'交通',      bigcat:'life'},
   {name:'外縣市(北上)',bigcat:'life'},
   {name:'電信',      bigcat:'life'},
-  {name:'業務開支',  bigcat:'give'},
-  {name:'禾馨駐點',  bigcat:'life'},
+  {name:'業務開支',  bigcat:'fin'},
+  {name:'禾馨駐點',  bigcat:'fin'},
   {name:'紅包',      bigcat:'give'},
   {name:'家人',      bigcat:'give'},
-  {name:'s',         bigcat:'life'},
+  {name:'s',         bigcat:'enjoy'},
   {name:'健身',      bigcat:'enjoy'},
   {name:'羽球',      bigcat:'enjoy'},
   {name:'醫美',      bigcat:'enjoy'},
-  {name:'投資',      bigcat:'fin'},
+  {name:'投資',      bigcat:'goal'},
   {name:'儲蓄',      bigcat:'goal'},
   {name:'罰單',      bigcat:'life'},
 ];
@@ -1309,6 +1379,92 @@ function showToast(msg, type='success') {
 }
 
 // ============================================================
+// ANNUAL MATRIX TABLE
+// ============================================================
+function renderMatrix() {
+  const year = state.currentYear;
+  const curMonth = state.currentMonth;
+  const months = Array.from({length:12}, (_,i) => i+1); // 1-12
+
+  // 預先算好每格的值：matrix[bigcat_id][month] = amount
+  const data = {};
+  BIGCATS.forEach(bc => {
+    data[bc.id] = {};
+    months.forEach(m => {
+      const exps = expensesForMonth(year, m);
+      data[bc.id][m] = exps
+        .filter(e => e.bigcat === bc.id)
+        .reduce((s,e) => s + (+e.amount||0), 0);
+    });
+  });
+
+  // 每月合計（縱向 Total）
+  const monthTotal = {};
+  months.forEach(m => {
+    monthTotal[m] = BIGCATS.reduce((s,bc) => s + (data[bc.id][m]||0), 0);
+  });
+
+  // 每分類年度合計（橫向 Total）
+  const catTotal = {};
+  BIGCATS.forEach(bc => {
+    catTotal[bc.id] = months.reduce((s,m) => s + (data[bc.id][m]||0), 0);
+  });
+
+  // 全年總計
+  const grandTotal = BIGCATS.reduce((s,bc) => s + (catTotal[bc.id]||0), 0);
+
+  // ---- thead ----
+  const thead = document.getElementById('matrix-thead');
+  thead.innerHTML = `<tr>
+    <th class="m-label">大類</th>
+    ${months.map(m => `<th class="m-month${m===curMonth?' sort-active':''}">
+      ${m}月${m===curMonth?'<span class="m-cur-badge">本月</span>':''}
+    </th>`).join('')}
+    <th class="m-total-col">Total</th>
+  </tr>`;
+
+  // ---- tbody ----
+  const tbody = document.getElementById('matrix-tbody');
+
+  // 各大類列
+  const catRows = BIGCATS.map(bc => {
+    const rowTotal = catTotal[bc.id];
+    const cells = months.map(m => {
+      const v = data[bc.id][m];
+      const isCur = m === curMonth;
+      return `<td class="${v===0?'m-zero':''}${isCur?' m-current-month':''}">${v===0?'—':fmtShort(v)}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="m-label-cell" style="color:${bc.color}">
+        ${bc.emoji} ${bc.name}
+      </td>
+      ${cells}
+      <td class="m-total-col">${rowTotal===0?'—':fmtShort(rowTotal)}</td>
+    </tr>`;
+  }).join('');
+
+  // 月合計列（Total 橫列）
+  const totalRow = `<tr class="m-total-row">
+    <td class="m-label-cell">📊 Total</td>
+    ${months.map(m => {
+      const v = monthTotal[m];
+      return `<td class="${m===curMonth?'m-current-month':''}">${v===0?'—':fmtShort(v)}</td>`;
+    }).join('')}
+    <td class="m-total-col">${fmtShort(grandTotal)}</td>
+  </tr>`;
+
+  tbody.innerHTML = catRows + totalRow;
+}
+
+// 矩陣用簡短金額格式（千以上顯示 k）
+function fmtShort(n) {
+  if (n === 0) return '—';
+  if (n >= 10000) return '$' + (n/1000).toFixed(0) + 'k';
+  if (n >= 1000)  return '$' + (n/1000).toFixed(1) + 'k';
+  return '$' + Math.round(n).toLocaleString('zh-TW');
+}
+
+// ============================================================
 // RENDER ALL
 // ============================================================
 function renderAll() {
@@ -1318,6 +1474,7 @@ function renderAll() {
   renderCatCards();
   renderBudgetSidebar();
   renderCharts();
+  renderMatrix();
   renderFilterChips();
   renderTable();
 }
