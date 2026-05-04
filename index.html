@@ -459,7 +459,7 @@ select.inp option{background:var(--surface);color:var(--text)}
     <!-- Charts -->
     <div id="charts-row">
       <div class="chart-card">
-        <div class="section-title">📈 月支出趨勢</div>
+        <div class="section-title">📈 月度支出趨勢</div>
         <div class="chart-wrap"><canvas id="line-chart"></canvas></div>
       </div>
       <div class="chart-card">
@@ -480,9 +480,9 @@ select.inp option{background:var(--surface);color:var(--text)}
 
     <!-- Annual Matrix Table -->
     <div id="matrix-card">
-      <div class="section-title">📅 Monthly Expenses
+      <div class="section-title">📅 年度支出矩陣
         <span id="matrix-year-label" style="font-size:.82rem;color:var(--accent);font-weight:800;margin-left:4px"></span>
-        <span style="font-size:.72rem;color:var(--text3);font-weight:500;margin-left:6px">縱軸：分類　橫軸：月份</span>
+        <span style="font-size:.72rem;color:var(--text3);font-weight:500;margin-left:6px">縱軸：大類　橫軸：月份</span>
       </div>
       <div class="matrix-wrap">
         <table class="matrix-table">
@@ -1086,7 +1086,15 @@ function renderTable() {
         <button class="del-btn" onclick="deleteExpense(${e.id})" title="刪除">🗑</button>
       </td>
     </tr>`;
-  }).join('');
+  }).join('') + `<tr style="border-top:2px solid var(--border)">
+    <td colspan="4" style="padding:9px 10px;font-size:.78rem;font-weight:700;color:var(--text2)">
+      合計 <span style="font-size:.7rem;font-weight:500">（${filtered.length} 筆）</span>
+    </td>
+    <td class="amount-cell" style="color:var(--accent);font-size:1rem">
+      ${fmt(filtered.reduce((s,e)=>s+(+e.amount||0),0))}
+    </td>
+    <td colspan="2"></td>
+  </tr>`;
 }
 
 function renderFilterChips() {
