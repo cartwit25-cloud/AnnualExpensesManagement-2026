@@ -361,6 +361,70 @@ select.inp option{background:var(--surface);color:var(--text)}
   50%{opacity:.5;transform:scale(1.35)}
 }
 
+/* ---- RECURRING EXPENSES ---- */
+.recurring-toggle{
+  display:flex;align-items:center;gap:7px;
+  margin-top:8px;cursor:pointer;user-select:none;
+}
+.recurring-toggle input[type="checkbox"]{
+  width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;
+}
+.recurring-toggle .rtog-label{
+  font-size:.8rem;font-weight:700;color:var(--text2);transition:color var(--transition);
+}
+.recurring-toggle:hover .rtog-label{color:var(--accent);}
+.recurring-opts{
+  background:linear-gradient(135deg,#f3eeff 0%,#fdf4ff 100%);
+  border:1.5px solid var(--accent3);border-radius:var(--radius2);
+  padding:10px 12px;margin-top:6px;display:flex;flex-direction:column;gap:8px;
+}
+.freq-row{display:flex;gap:6px;}
+.freq-btn{
+  flex:1;padding:6px 0;border-radius:8px;border:1.5px solid var(--accent3);
+  background:transparent;font-family:'Nunito',sans-serif;font-size:.78rem;font-weight:700;
+  color:var(--accent);cursor:pointer;transition:all var(--transition);
+}
+.freq-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.freq-btn:hover:not(.active){background:var(--accent3);}
+.rec-date-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.rec-date-label{font-size:.76rem;color:var(--text2);font-weight:600;white-space:nowrap;}
+.rec-date-num{
+  width:54px;padding:5px 8px;text-align:center;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:8px;font-size:.82rem;color:var(--text);
+}
+.rec-date-sep{font-size:.76rem;color:var(--text3);}
+/* 經常性清單 sidebar section */
+.recurring-section-header{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+}
+.btn-apply-recurring{
+  padding:4px 11px;border-radius:20px;border:none;
+  background:var(--accent);color:#fff;
+  font-family:'Nunito',sans-serif;font-size:.75rem;font-weight:800;
+  cursor:pointer;transition:var(--transition);white-space:nowrap;
+}
+.btn-apply-recurring:hover{background:var(--accent2);}
+.rec-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 9px;border-radius:9px;
+  background:var(--surface2);border:1px solid var(--border);
+  margin-bottom:5px;
+}
+.rec-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--accent2);}
+.rec-dot.yearly{background:var(--pink);}
+.rec-info{flex:1;min-width:0;}
+.rec-name{font-size:.8rem;font-weight:700;color:var(--text);}
+.rec-meta{font-size:.7rem;color:var(--text3);margin-top:1px;}
+.rec-amount{font-family:'Nunito',sans-serif;font-size:.84rem;font-weight:800;color:var(--accent);white-space:nowrap;}
+.rec-del{
+  font-size:.68rem;color:var(--text3);cursor:pointer;
+  padding:2px 5px;border-radius:5px;border:1px solid var(--border);background:transparent;
+  transition:all var(--transition);flex-shrink:0;
+}
+.rec-del:hover{color:var(--coral);border-color:var(--coral);}
+.rec-empty{font-size:.78rem;color:var(--text3);text-align:center;padding:10px 0;}
+
 /* ---- YEAR SELECTOR ---- */
 #year-selector{
   display:flex;align-items:center;gap:3px;
@@ -467,8 +531,40 @@ select.inp option{background:var(--surface);color:var(--text)}
           <input class="inp" id="q-date" type="date">
           <input class="inp" id="q-note" placeholder="備註">
         </div>
+        <!-- 經常性開銷 toggle -->
+        <label class="recurring-toggle">
+          <input type="checkbox" id="q-recurring" onchange="toggleRecurringOpts(this)">
+          <span class="rtog-label">🔁 設為經常性開銷</span>
+        </label>
+        <div class="recurring-opts" id="recurring-opts" style="display:none">
+          <div class="freq-row">
+            <button class="freq-btn active" id="freq-monthly" onclick="setFreqMode('monthly')">每月</button>
+            <button class="freq-btn" id="freq-yearly" onclick="setFreqMode('yearly')">每年</button>
+          </div>
+          <div class="rec-date-row" id="rec-row-monthly">
+            <span class="rec-date-label">每月</span>
+            <input class="inp rec-date-num" id="rec-day" type="number" min="1" max="31" value="1">
+            <span class="rec-date-sep">號</span>
+          </div>
+          <div class="rec-date-row" id="rec-row-yearly" style="display:none">
+            <span class="rec-date-label">每年</span>
+            <input class="inp rec-date-num" id="rec-month" type="number" min="1" max="12" value="1">
+            <span class="rec-date-sep">月</span>
+            <input class="inp rec-date-num" id="rec-yearday" type="number" min="1" max="31" value="1">
+            <span class="rec-date-sep">號</span>
+          </div>
+        </div>
         <button class="btn-add" onclick="quickAdd()">＋ 新增支出</button>
       </div>
+    </div>
+
+    <!-- RECURRING LIST -->
+    <div class="sidebar-section" id="recurring-section">
+      <div class="recurring-section-header">
+        <div class="sidebar-label" style="margin-bottom:0">🔁 經常性開銷</div>
+        <button class="btn-apply-recurring" onclick="applyRecurringThisMonth()">＋ 套用本月</button>
+      </div>
+      <div id="recurring-list"></div>
     </div>
 
     <!-- QUICK SHORTCUTS -->
@@ -674,6 +770,7 @@ let state = {
   income: {},
   budgets: {},
   defaultItems: JSON.parse(JSON.stringify(DEFAULT_ITEMS)),
+  recurringItems: [], // 經常性開銷範本
   gasUrl: '',
   sheetId: '',
   filterBigcat: 'all',
@@ -695,6 +792,7 @@ function save() {
   localStorage.setItem('afe_config', JSON.stringify({
     gasUrl: state.gasUrl,
     sheetId: state.sheetId,
+    recurringItems: state.recurringItems,
   }));
   // 更新本地儲存時間戳（若目前非同步中狀態才更新）
   const dot = document.getElementById('sync-dot');
@@ -712,6 +810,7 @@ function load() {
     const cfg = JSON.parse(localStorage.getItem('afe_config') || '{}');
     if (cfg.gasUrl)  state.gasUrl  = cfg.gasUrl;
     if (cfg.sheetId) state.sheetId = cfg.sheetId;
+    if (cfg.recurringItems) state.recurringItems = cfg.recurringItems;
   } catch(e){}
 }
 
@@ -796,9 +895,98 @@ function quickAdd() {
   if (!amount || amount <= 0) { showToast('請輸入金額', 'error'); return; }
   const bigcat = getItemBigcat(cat);
   addExpense({amount, cat, item, date, note, bigcat});
+
+  // 若勾選了經常性開銷，一併儲存範本
+  if (document.getElementById('q-recurring').checked) {
+    const freq = document.getElementById('freq-monthly').classList.contains('active') ? 'monthly' : 'yearly';
+    const rec = { id: Date.now(), item: item || cat, cat, bigcat, amount, note, freq };
+    if (freq === 'monthly') {
+      rec.day = parseInt(document.getElementById('rec-day').value) || 1;
+    } else {
+      rec.month = parseInt(document.getElementById('rec-month').value) || 1;
+      rec.day   = parseInt(document.getElementById('rec-yearday').value) || 1;
+    }
+    state.recurringItems.push(rec);
+    save();
+    renderRecurringList();
+    showToast('🔁 已加入經常性開銷清單');
+    // 重設 toggle
+    document.getElementById('q-recurring').checked = false;
+    toggleRecurringOpts(document.getElementById('q-recurring'));
+  }
+
   document.getElementById('q-amount').value = '';
   document.getElementById('q-note').value = '';
   document.getElementById('q-item').value = '';
+}
+
+// ---- 經常性開銷 UI ----
+function toggleRecurringOpts(cb) {
+  document.getElementById('recurring-opts').style.display = cb.checked ? 'flex' : 'none';
+}
+
+function setFreqMode(mode) {
+  document.getElementById('freq-monthly').classList.toggle('active', mode === 'monthly');
+  document.getElementById('freq-yearly').classList.toggle('active', mode === 'yearly');
+  document.getElementById('rec-row-monthly').style.display = mode === 'monthly' ? 'flex' : 'none';
+  document.getElementById('rec-row-yearly').style.display  = mode === 'yearly'  ? 'flex' : 'none';
+}
+
+function renderRecurringList() {
+  const el = document.getElementById('recurring-list');
+  if (!el) return;
+  if (!state.recurringItems.length) {
+    el.innerHTML = '<div class="rec-empty">尚無設定，新增支出時勾選 🔁 即可加入</div>';
+    return;
+  }
+  el.innerHTML = state.recurringItems.map(r => {
+    const isYearly = r.freq === 'yearly';
+    const meta = isYearly ? `每年 ${r.month} 月 ${r.day} 號` : `每月 ${r.day} 號`;
+    return `<div class="rec-item">
+      <div class="rec-dot${isYearly?' yearly':''}"></div>
+      <div class="rec-info">
+        <div class="rec-name">${r.item}</div>
+        <div class="rec-meta">${meta} · ${r.cat}</div>
+      </div>
+      <div class="rec-amount">$${Math.round(r.amount).toLocaleString('zh-TW')}</div>
+      <button class="rec-del" onclick="deleteRecurring(${r.id})" title="刪除">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteRecurring(id) {
+  state.recurringItems = state.recurringItems.filter(r => r.id !== id);
+  save();
+  renderRecurringList();
+}
+
+function applyRecurringThisMonth() {
+  const y = state.currentYear;
+  const m = state.currentMonth;
+  const toApply = state.recurringItems.filter(r => {
+    if (r.freq === 'monthly') return true;
+    if (r.freq === 'yearly')  return r.month === m;
+    return false;
+  });
+  if (!toApply.length) { showToast('本月沒有經常性開銷需套用'); return; }
+  toApply.forEach(r => {
+    const day = String(r.day).padStart(2,'0');
+    const mon = String(m).padStart(2,'0');
+    const date = `${y}-${mon}-${day}`;
+    const exp = {
+      id: Date.now() + Math.random(),
+      date,
+      item: r.item || r.cat,
+      cat: r.cat,
+      bigcat: r.bigcat || getItemBigcat(r.cat),
+      amount: +r.amount,
+      note: r.note || '',
+    };
+    state.expenses.push(exp);
+  });
+  save();
+  renderAll();
+  showToast(`✅ 已套用 ${toApply.length} 筆經常性開銷`);
 }
 
 function addExpense(data) {
@@ -1558,6 +1746,7 @@ function renderAll() {
   renderFilterChips();
   renderTable();
   renderYearSelector();
+  renderRecurringList();
 }
 
 // ============================================================
@@ -1598,6 +1787,7 @@ function init() {
   initForm();
   renderQuickBtns();
   renderYearSelector();
+  renderRecurringList();
   updateSheetsStatus();
   renderAll();
   setSyncPill('local');
