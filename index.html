@@ -1563,7 +1563,37 @@ function renderAll() {
 // ============================================================
 // INIT
 // ============================================================
+function migrateOldState() {
+  const old = localStorage.getItem('afe_state');
+  if (!old) return;
+  try {
+    const d = JSON.parse(old);
+    // 遷移資料到年份 key（猜測為 2026，若 expenses 有資料則以第一筆年份為準）
+    let year = 2026;
+    if (d.expenses && d.expenses.length > 0 && d.expenses[0].date) {
+      const y = parseInt(d.expenses[0].date.slice(0,4));
+      if (y >= 2024 && y <= 2030) year = y;
+    }
+    if (!localStorage.getItem('afe_state_' + year)) {
+      localStorage.setItem('afe_state_' + year, JSON.stringify({
+        expenses: d.expenses || [],
+        income: d.income || {},
+        budgets: d.budgets || {},
+        defaultItems: d.defaultItems || [],
+      }));
+    }
+    if (!localStorage.getItem('afe_config') && (d.gasUrl || d.sheetId)) {
+      localStorage.setItem('afe_config', JSON.stringify({
+        gasUrl: d.gasUrl || '',
+        sheetId: d.sheetId || '',
+      }));
+    }
+    localStorage.removeItem('afe_state');
+  } catch(e) {}
+}
+
 function init() {
+  migrateOldState();
   load();
   initForm();
   renderQuickBtns();
