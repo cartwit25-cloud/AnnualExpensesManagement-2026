@@ -894,30 +894,127 @@ function quickAdd() {
   const note   = document.getElementById('q-note').value;
   if (!amount || amount <= 0) { showToast('請輸入金額', 'error'); return; }
   const bigcat = getItemBigcat(cat);
-  addExpense({amount, cat, item, date, note, bigcat});
 
-  // 若勾選了經常性開銷，一併儲存範本
+  // 若勾選了經常性開銷 → 不走一般新增，改走全年建立流程
   if (document.getElementById('q-recurring').checked) {
     const freq = document.getElementById('freq-monthly').classList.contains('active') ? 'monthly' : 'yearly';
-    const rec = { id: Date.now(), item: item || cat, cat, bigcat, amount, note, freq };
+    const rec = { id: Date.now(), item, cat, bigcat, amount, note, freq };
     if (freq === 'monthly') {
       rec.day = parseInt(document.getElementById('rec-day').value) || 1;
     } else {
       rec.month = parseInt(document.getElementById('rec-month').value) || 1;
       rec.day   = parseInt(document.getElementById('rec-yearday').value) || 1;
     }
+    // 先儲存範本
     state.recurringItems.push(rec);
     save();
     renderRecurringList();
-    showToast('🔁 已加入經常性開銷清單');
-    // 重設 toggle
-    document.getElementById('q-recurring').checked = false;
-    toggleRecurringOpts(document.getElementById('q-recurring'));
+    // 檢查全年衝突後批次建立
+    confirmAndCreateAllYear(rec);
+    return; // 不走下方的單筆新增
   }
 
+  addExpense({amount, cat, item, date, note, bigcat});
   document.getElementById('q-amount').value = '';
   document.getElementById('q-note').value = '';
   document.getElementById('q-item').value = '';
+}
+
+// 建立全年12筆（月）或當年符合月份的筆（年），先確認衝突
+function confirmAndCreateAllYear(rec) {
+  const y = state.currentYear;
+  const months = rec.freq === 'monthly'
+    ? [1,2,3,4,5,6,7,8,9,10,11,12]
+    : [rec.month]; // 每年只有一個月份
+
+  // 找出已有同項目＋同分類的月份
+  const conflictMonths = months.filter(m => {
+    const mk = `${y}-${String(m).padStart(2,'0')}`;
+    return state.expenses.some(e =>
+      e.item === rec.item && e.cat === rec.cat &&
+      e.date && e.date.startsWith(mk)
+    );
+  });
+
+  if (conflictMonths.length > 0) {
+    // 顯示確認彈窗
+    showRecurringConflictModal(rec, months, conflictMonths);
+  } else {
+    bulkCreateRecurring(rec, months);
+    resetQuickAddForm();
+  }
+}
+
+function showRecurringConflictModal(rec, months, conflictMonths) {
+  // 移除舊的 modal（若有）
+  const old = document.getElementById('rec-conflict-modal');
+  if (old) old.remove();
+
+  const conflictStr = conflictMonths.map(m => m + '月').join('、');
+  const modal = document.createElement('div');
+  modal.id = 'rec-conflict-modal';
+  modal.innerHTML = `
+    <div class="modal-backdrop" onclick="closeRecurringModal()"></div>
+    <div class="modal-box rec-modal-box">
+      <div class="modal-title">⚠️ 發現重複紀錄</div>
+      <div class="rec-conflict-msg">
+        <strong>${rec.item}</strong> 在以下月份已有紀錄：<br>
+        <span class="conflict-months">${conflictStr}</span>
+      </div>
+      <div class="rec-modal-btns">
+        <button class="rec-modal-btn skip" onclick="bulkCreateAndClose(${JSON.stringify(rec).replace(/"/g,"'")}, ${JSON.stringify(months)}, ${JSON.stringify(conflictMonths)}, true)">
+          跳過已有月份
+        </button>
+        <button class="rec-modal-btn all" onclick="bulkCreateAndClose(${JSON.stringify(rec).replace(/"/g,"'")}, ${JSON.stringify(months)}, ${JSON.stringify(conflictMonths)}, false)">
+          全部新增（允許重複）
+        </button>
+        <button class="rec-modal-btn cancel" onclick="closeRecurringModal()">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function closeRecurringModal() {
+  const m = document.getElementById('rec-conflict-modal');
+  if (m) m.remove();
+}
+
+function bulkCreateAndClose(rec, months, conflictMonths, skipConflicts) {
+  const targetMonths = skipConflicts
+    ? months.filter(m => !conflictMonths.includes(m))
+    : months;
+  bulkCreateRecurring(rec, targetMonths);
+  closeRecurringModal();
+  resetQuickAddForm();
+}
+
+function bulkCreateRecurring(rec, months) {
+  const y = state.currentYear;
+  months.forEach(m => {
+    const day = String(rec.day).padStart(2,'0');
+    const mon = String(m).padStart(2,'0');
+    const exp = {
+      id: Date.now() + Math.random(),
+      date: `${y}-${mon}-${day}`,
+      item: rec.item,
+      cat: rec.cat,
+      bigcat: rec.bigcat || getItemBigcat(rec.cat),
+      amount: +rec.amount,
+      note: rec.note || '',
+    };
+    state.expenses.push(exp);
+  });
+  save();
+  renderAll();
+  showToast(`✅ 已建立 ${months.length} 筆經常性開銷`);
+}
+
+function resetQuickAddForm() {
+  document.getElementById('q-amount').value = '';
+  document.getElementById('q-note').value = '';
+  document.getElementById('q-item').value = '';
+  document.getElementById('q-recurring').checked = false;
+  toggleRecurringOpts(document.getElementById('q-recurring'));
 }
 
 // ---- 經常性開銷 UI ----
