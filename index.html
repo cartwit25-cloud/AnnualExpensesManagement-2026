@@ -424,6 +424,35 @@ select.inp option{background:var(--surface);color:var(--text)}
 }
 .rec-del:hover{color:var(--coral);border-color:var(--coral);}
 .rec-empty{font-size:.78rem;color:var(--text3);text-align:center;padding:10px 0;}
+/* 衝突確認 modal */
+#rec-conflict-modal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;}
+.rec-modal-box{
+  background:var(--surface);border-radius:var(--radius);
+  border:1.5px solid var(--border);box-shadow:var(--shadow2);
+  padding:24px 24px 20px;max-width:340px;width:90%;z-index:9001;position:relative;
+}
+.rec-modal-box .modal-title{
+  font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;
+  color:var(--text);margin-bottom:12px;
+}
+.rec-conflict-msg{font-size:.83rem;color:var(--text2);line-height:1.6;margin-bottom:16px;}
+.conflict-months{
+  display:inline-block;margin-top:5px;
+  background:var(--coral2);color:var(--coral);
+  border-radius:8px;padding:3px 10px;font-weight:700;font-size:.82rem;
+}
+.rec-modal-btns{display:flex;flex-direction:column;gap:7px;}
+.rec-modal-btn{
+  width:100%;padding:10px;border-radius:10px;border:none;
+  font-family:'Nunito',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;
+  transition:var(--transition);
+}
+.rec-modal-btn.skip{background:var(--accent);color:#fff;}
+.rec-modal-btn.skip:hover{background:var(--accent2);}
+.rec-modal-btn.all{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);}
+.rec-modal-btn.all:hover{border-color:var(--accent);color:var(--accent);}
+.rec-modal-btn.cancel{background:transparent;color:var(--text3);font-size:.78rem;}
+.rec-modal-btn.cancel:hover{color:var(--text);}
 
 /* ---- YEAR SELECTOR ---- */
 #year-selector{
@@ -945,8 +974,11 @@ function confirmAndCreateAllYear(rec) {
   }
 }
 
+// 暫存 pending 衝突資料，供 modal 按鈕使用
+let _pendingRecurring = null;
+
 function showRecurringConflictModal(rec, months, conflictMonths) {
-  // 移除舊的 modal（若有）
+  _pendingRecurring = { rec, months, conflictMonths };
   const old = document.getElementById('rec-conflict-modal');
   if (old) old.remove();
 
@@ -955,19 +987,15 @@ function showRecurringConflictModal(rec, months, conflictMonths) {
   modal.id = 'rec-conflict-modal';
   modal.innerHTML = `
     <div class="modal-backdrop" onclick="closeRecurringModal()"></div>
-    <div class="modal-box rec-modal-box">
+    <div class="rec-modal-box">
       <div class="modal-title">⚠️ 發現重複紀錄</div>
       <div class="rec-conflict-msg">
         <strong>${rec.item}</strong> 在以下月份已有紀錄：<br>
         <span class="conflict-months">${conflictStr}</span>
       </div>
       <div class="rec-modal-btns">
-        <button class="rec-modal-btn skip" onclick="bulkCreateAndClose(${JSON.stringify(rec).replace(/"/g,"'")}, ${JSON.stringify(months)}, ${JSON.stringify(conflictMonths)}, true)">
-          跳過已有月份
-        </button>
-        <button class="rec-modal-btn all" onclick="bulkCreateAndClose(${JSON.stringify(rec).replace(/"/g,"'")}, ${JSON.stringify(months)}, ${JSON.stringify(conflictMonths)}, false)">
-          全部新增（允許重複）
-        </button>
+        <button class="rec-modal-btn skip" onclick="resolveRecurringModal(true)">跳過已有月份</button>
+        <button class="rec-modal-btn all"  onclick="resolveRecurringModal(false)">全部新增（允許重複）</button>
         <button class="rec-modal-btn cancel" onclick="closeRecurringModal()">取消</button>
       </div>
     </div>`;
@@ -977,9 +1005,12 @@ function showRecurringConflictModal(rec, months, conflictMonths) {
 function closeRecurringModal() {
   const m = document.getElementById('rec-conflict-modal');
   if (m) m.remove();
+  _pendingRecurring = null;
 }
 
-function bulkCreateAndClose(rec, months, conflictMonths, skipConflicts) {
+function resolveRecurringModal(skipConflicts) {
+  if (!_pendingRecurring) return;
+  const { rec, months, conflictMonths } = _pendingRecurring;
   const targetMonths = skipConflicts
     ? months.filter(m => !conflictMonths.includes(m))
     : months;
