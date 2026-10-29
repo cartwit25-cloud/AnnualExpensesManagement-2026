@@ -361,6 +361,35 @@ select.inp option{background:var(--surface);color:var(--text)}
   50%{opacity:.5;transform:scale(1.35)}
 }
 
+/* ---- YEAR SELECTOR ---- */
+#year-selector{
+  display:flex;align-items:center;gap:3px;
+  background:var(--surface2);border:1.5px solid var(--border);
+  border-radius:40px;padding:3px 5px;
+}
+.year-btn{
+  padding:4px 11px;border-radius:40px;border:none;
+  font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:700;
+  cursor:pointer;background:transparent;color:var(--text2);
+  transition:var(--transition);
+}
+.year-btn.active{background:var(--accent);color:#fff;}
+.year-btn:hover:not(.active){background:var(--border);color:var(--text);}
+/* Matrix tooltip */
+.m-tip-wrap{position:relative;display:inline-block;width:100%;}
+.m-tip{
+  position:absolute;bottom:calc(100% + 6px);left:50%;
+  transform:translateX(-50%);
+  background:var(--text);color:#fff;
+  border-radius:9px;padding:7px 11px;
+  font-size:.72rem;white-space:nowrap;
+  pointer-events:none;z-index:30;
+  opacity:0;transition:opacity .15s;
+  line-height:1.5;text-align:center;
+}
+.m-tip strong{color:var(--amber2);font-size:.9rem;}
+.m-tip-wrap:hover .m-tip{opacity:1;}
+
 /* Responsive */
 @media(max-width:900px){
   #sidebar{width:220px;min-width:180px}
@@ -385,6 +414,7 @@ select.inp option{background:var(--surface);color:var(--text)}
     <span id="month-label">2025年 1月</span>
     <button onclick="changeMonth(1)">›</button>
   </div>
+  <div id="year-selector"></div>
   <div class="topbar-right">
     <div id="income-input-wrap">
       <label>月收入 $</label>
@@ -656,11 +686,13 @@ let state = {
 // PERSIST
 // ============================================================
 function save() {
-  localStorage.setItem('afe_state', JSON.stringify({
+  localStorage.setItem('afe_state_' + state.currentYear, JSON.stringify({
     expenses: state.expenses,
     income: state.income,
     budgets: state.budgets,
     defaultItems: state.defaultItems,
+  }));
+  localStorage.setItem('afe_config', JSON.stringify({
     gasUrl: state.gasUrl,
     sheetId: state.sheetId,
   }));
@@ -672,13 +704,14 @@ function save() {
 }
 function load() {
   try {
-    const d = JSON.parse(localStorage.getItem('afe_state') || '{}');
-    if (d.expenses) state.expenses = d.expenses;
-    if (d.income) state.income = d.income;
-    if (d.budgets) state.budgets = d.budgets;
-    if (d.defaultItems) state.defaultItems = d.defaultItems;
-    if (d.gasUrl) state.gasUrl = d.gasUrl;
-    if (d.sheetId) state.sheetId = d.sheetId;
+    const d = JSON.parse(localStorage.getItem('afe_state_' + state.currentYear) || '{}');
+    state.expenses    = d.expenses    || [];
+    state.income      = d.income      || {};
+    state.budgets     = d.budgets     || {};
+    state.defaultItems= d.defaultItems|| JSON.parse(JSON.stringify(DEFAULT_ITEMS));
+    const cfg = JSON.parse(localStorage.getItem('afe_config') || '{}');
+    if (cfg.gasUrl)  state.gasUrl  = cfg.gasUrl;
+    if (cfg.sheetId) state.sheetId = cfg.sheetId;
   } catch(e){}
 }
 
@@ -1457,7 +1490,12 @@ function renderMatrix() {
     const cells = months.map(m => {
       const v = data[cat][m];
       const isCur = m === curMonth;
-      return `<td class="${v===0?'m-zero':''}${isCur?' m-current-month':''}">${v===0?'—':fmtMatrix(v)}</td>`;
+      if (v === 0) {
+        return `<td class="m-zero${isCur?' m-current-month':''}">—</td>`;
+      }
+      const mTotal = monthTotal[m];
+      const pctVal = mTotal > 0 ? (v / mTotal * 100).toFixed(1) : '0.0';
+      return `<td class="${isCur?'m-current-month':''}"><div class="m-tip-wrap">${fmtMatrix(v)}<div class="m-tip">${m}月 · ${cat}<br>${fmtMatrix(v)}<br>占本月 <strong>${pctVal}%</strong></div></div></td>`;
     }).join('');
     return `<tr>
       <td class="m-label-cell" style="color:${color}">${cat}</td>
@@ -1488,6 +1526,27 @@ function fmtMatrix(n) {
 // ============================================================
 // RENDER ALL
 // ============================================================
+const YEAR_RANGE = [2026, 2027, 2028, 2029];
+
+function renderYearSelector() {
+  const el = document.getElementById('year-selector');
+  if (!el) return;
+  el.innerHTML = YEAR_RANGE.map(y =>
+    `<button class="year-btn${y===state.currentYear?' active':''}" onclick="changeYear(${y})">${y}</button>`
+  ).join('');
+}
+
+function changeYear(y) {
+  state.currentYear = y;
+  state.currentMonth = 1;
+  load();
+  if (lineChart) { lineChart.destroy(); lineChart = null; }
+  if (pieChart)  { pieChart.destroy();  pieChart = null; }
+  if (barChart)  { barChart.destroy();  barChart = null; }
+  renderYearSelector();
+  renderAll();
+}
+
 function renderAll() {
   updateMonthLabel();
   loadIncome();
@@ -1498,6 +1557,7 @@ function renderAll() {
   renderMatrix();
   renderFilterChips();
   renderTable();
+  renderYearSelector();
 }
 
 // ============================================================
@@ -1507,6 +1567,7 @@ function init() {
   load();
   initForm();
   renderQuickBtns();
+  renderYearSelector();
   updateSheetsStatus();
   renderAll();
   setSyncPill('local');
