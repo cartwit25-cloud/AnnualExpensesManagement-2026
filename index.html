@@ -405,6 +405,8 @@ select.inp option{background:var(--surface);color:var(--text)}
   cursor:pointer;transition:var(--transition);white-space:nowrap;
 }
 .btn-apply-recurring:hover{background:var(--accent2);}
+.btn-apply-year{background:var(--surface2);border:1.5px solid var(--accent);color:var(--accent);margin-top:5px;}
+.btn-apply-year:hover{background:var(--accent3);}
 .rec-item{
   display:flex;align-items:center;gap:8px;
   padding:7px 9px;border-radius:9px;
@@ -592,6 +594,7 @@ select.inp option{background:var(--surface);color:var(--text)}
       <div class="recurring-section-header">
         <div class="sidebar-label" style="margin-bottom:0">🔁 經常性開銷</div>
         <button class="btn-apply-recurring" onclick="applyRecurringThisMonth()">＋ 套用本月</button>
+        <button class="btn-apply-recurring btn-apply-year" onclick="applyRecurringFullYear()">＋ 套用全年</button>
       </div>
       <div id="recurring-list"></div>
     </div>
@@ -1115,6 +1118,102 @@ function applyRecurringThisMonth() {
   save();
   renderAll();
   showToast(`✅ 已套用 ${toApply.length} 筆經常性開銷`);
+}
+
+function applyRecurringFullYear() {
+  if (!state.recurringItems.length) { showToast('尚未設定經常性開銷'); return; }
+  const y = state.currentYear;
+
+  // 把每個 recurringItem 展開成 (rec, months) 對，再合併衝突檢查
+  // 收集所有要建立的 (rec, month) 組合
+  const allPairs = []; // [{rec, month}]
+  state.recurringItems.forEach(r => {
+    const months = r.freq === 'monthly'
+      ? [1,2,3,4,5,6,7,8,9,10,11,12]
+      : [r.month];
+    months.forEach(m => allPairs.push({ rec: r, month: m }));
+  });
+
+  // 找衝突
+  const conflictPairs = allPairs.filter(({ rec, month }) => {
+    const mk = `${y}-${String(month).padStart(2,'0')}`;
+    return state.expenses.some(e =>
+      e.item === rec.item && e.cat === rec.cat && e.date && e.date.startsWith(mk)
+    );
+  });
+
+  if (conflictPairs.length > 0) {
+    // 顯示衝突 modal（全年版）
+    _pendingFullYear = { allPairs, conflictPairs };
+    showFullYearConflictModal(conflictPairs);
+  } else {
+    bulkCreatePairs(allPairs);
+    showToast(`✅ 已套用全年共 ${allPairs.length} 筆`);
+  }
+}
+
+let _pendingFullYear = null;
+
+function showFullYearConflictModal(conflictPairs) {
+  const old = document.getElementById('rec-conflict-modal');
+  if (old) old.remove();
+
+  // 整理衝突描述：「項目 X月」
+  const lines = conflictPairs.map(p => `${p.rec.item} ${p.month}月`);
+  const preview = lines.slice(0, 6).join('、') + (lines.length > 6 ? `… 等 ${lines.length} 筆` : '');
+
+  const modal = document.createElement('div');
+  modal.id = 'rec-conflict-modal';
+  modal.innerHTML = `
+    <div class="modal-backdrop" onclick="closeFullYearModal()"></div>
+    <div class="rec-modal-box">
+      <div class="modal-title">⚠️ 發現重複紀錄</div>
+      <div class="rec-conflict-msg">
+        以下項目在該月份已有紀錄：<br>
+        <span class="conflict-months">${preview}</span>
+      </div>
+      <div class="rec-modal-btns">
+        <button class="rec-modal-btn skip" onclick="resolveFullYear(true)">跳過已有月份</button>
+        <button class="rec-modal-btn all"  onclick="resolveFullYear(false)">全部新增（允許重複）</button>
+        <button class="rec-modal-btn cancel" onclick="closeFullYearModal()">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function closeFullYearModal() {
+  const m = document.getElementById('rec-conflict-modal');
+  if (m) m.remove();
+  _pendingFullYear = null;
+}
+
+function resolveFullYear(skipConflicts) {
+  if (!_pendingFullYear) return;
+  const { allPairs, conflictPairs } = _pendingFullYear;
+  const targetPairs = skipConflicts
+    ? allPairs.filter(p => !conflictPairs.some(c => c.rec.id === p.rec.id && c.month === p.month))
+    : allPairs;
+  bulkCreatePairs(targetPairs);
+  closeFullYearModal();
+  showToast(`✅ 已套用全年共 ${targetPairs.length} 筆`);
+}
+
+function bulkCreatePairs(pairs) {
+  const y = state.currentYear;
+  pairs.forEach(({ rec, month }) => {
+    const exp = {
+      id: Date.now() + Math.random(),
+      date: `${y}-${String(month).padStart(2,'0')}-${String(rec.day).padStart(2,'0')}`,
+      item: rec.item || rec.cat,
+      cat: rec.cat,
+      bigcat: rec.bigcat || getItemBigcat(rec.cat),
+      amount: +rec.amount,
+      note: rec.note || '',
+    };
+    state.expenses.push(exp);
+  });
+  save();
+  renderAll();
 }
 
 function addExpense(data) {
